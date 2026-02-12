@@ -1,0 +1,114 @@
+#include "bus.hpp"
+#include "memory.hpp"
+#include "memory_map.hpp"
+#include <cstdint>
+
+auto Bus::read(uint16_t addr) const -> uint8_t {
+  using namespace gb::mem;
+
+  if (addr <= ROM_END) {
+    return mem.rom[addr];
+  }
+
+  if (addr >= VRAM_START && addr <= VRAM_END) {
+    return mem.vram[addr - VRAM_START];
+  }
+
+  if (addr >= EXRAM_START && addr <= EXRAM_END) {
+    return mem.exram[addr - EXRAM_START];
+  }
+
+  if (addr >= WRAM_START && addr <= WRAM_END) {
+    return mem.wram[addr - WRAM_START];
+  }
+
+  if (addr >= ECHO_START && addr <= ECHO_END) {
+    return mem.wram[addr - ECHO_START]; // mirror
+  }
+
+  if (addr >= OAM_START && addr <= OAM_END) {
+    return mem.oam[addr - OAM_START];
+  }
+
+  if (addr >= UNUSED_START && addr <= UNUSED_END) {
+    return OPEN_BUS;
+  }
+
+  if (addr >= IO_START && addr <= IO_END) {
+    return OPEN_BUS; // not implemented yet
+  }
+
+  if (addr >= HRAM_START && addr <= HRAM_END) {
+    return mem.hram[addr - HRAM_START];
+  }
+
+  if (addr == IE_REG) {
+    return mem.ie;
+  }
+
+  return OPEN_BUS;
+}
+
+void Bus::write(uint16_t addr, uint8_t value) {
+
+  using namespace gb::mem;
+
+  // 0000–7FFF : ROM (usually MBC control)
+  if (addr <= ROM_END) {
+    // TODO: route to cartridge / MBC
+    return;
+  }
+
+  // 8000–9FFF : VRAM
+  if (addr >= VRAM_START && addr <= VRAM_END) {
+    mem.vram[addr - VRAM_START] = value;
+    return;
+  }
+
+  // A000–BFFF : External RAM
+  if (addr >= EXRAM_START && addr <= EXRAM_END) {
+    mem.exram[addr - EXRAM_START] = value;
+    return;
+  }
+
+  // C000–DFFF : WRAM
+  if (addr >= WRAM_START && addr <= WRAM_END) {
+    mem.wram[addr - WRAM_START] = value;
+    return;
+  }
+
+  // E000–FDFF : Echo RAM (mirror of C000–DDFF)
+  if (addr >= ECHO_START && addr <= ECHO_END) {
+    mem.wram[addr - ECHO_START] = value;
+    return;
+  }
+
+  // FE00–FE9F : OAM
+  if (addr >= OAM_START && addr <= OAM_END) {
+    mem.oam[addr - OAM_START] = value;
+    return;
+  }
+
+  // FEA0–FEFF : Unusable
+  if (addr >= UNUSED_START && addr <= UNUSED_END) {
+    return; // writes ignored
+  }
+
+  // FF00–FF7F : IO Registers
+  if (addr >= IO_START && addr <= IO_END) {
+    // TODO: delegate to IO subsystem
+    return;
+  }
+
+  // FF80–FFFE : HRAM
+  if (addr >= HRAM_START && addr <= HRAM_END) {
+    mem.hram[addr - HRAM_START] = value;
+    return;
+  }
+
+  // FFFF : Interrupt Enable
+  if (addr == IE_REG) {
+    mem.ie = value;
+    return;
+  }
+}

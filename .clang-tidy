@@ -5,4 +5,5 @@ Checks: >
   performance-*,
   readability-*,
   cppcoreguidelines-*
+  -cppcoreguidelines-pro-bounds-constant-array-index
 WarningsAsErrors: '*'
