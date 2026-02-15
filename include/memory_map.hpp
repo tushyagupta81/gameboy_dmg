@@ -35,4 +35,9 @@ constexpr uint16_t IE_REG = 0xFFFF;
 constexpr uint8_t OPEN_BUS = 0xFF;   // Default unmapped read value
 constexpr uint8_t UNUSED_READ = 0xFF;
 
+constexpr uint8_t FLAG_Z = 1 << 7;
+constexpr uint8_t FLAG_N = 1 << 6;
+constexpr uint8_t FLAG_H = 1 << 5;
+constexpr uint8_t FLAG_C = 1 << 4;
+
 } // namespace gb::mem

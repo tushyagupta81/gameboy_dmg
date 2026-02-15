@@ -11,6 +11,8 @@ add_executable(ProjectName)
 target_sources(ProjectName
   PRIVATE
    src/main.cpp
+   src/core/cpu.cpp
+   src/core/bus.cpp
 )
 
 target_include_directories(ProjectName
