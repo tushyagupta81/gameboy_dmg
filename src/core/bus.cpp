@@ -1,6 +1,7 @@
 #include "bus.hpp"
 #include "memory.hpp"
 #include "memory_map.hpp"
+#include <algorithm>
 #include <cstdint>
 
 auto Bus::read(uint16_t addr) const -> uint8_t {
@@ -111,4 +112,9 @@ void Bus::write(uint16_t addr, uint8_t value) {
     mem.ie = value;
     return;
   }
+}
+
+void Bus::load_rom(const std::vector<uint8_t> &rom_data) {
+  size_t size_to_copy = std::min(rom_data.size(), mem.rom.size());
+  std::copy_n(rom_data.begin(), size_to_copy, mem.rom.begin());
 }

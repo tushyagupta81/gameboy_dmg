@@ -1,6 +1,37 @@
 #include "cpu.hpp"
 #include "memory_map.hpp"
 #include <cstdint>
+#include <fstream>
+#include <iostream>
+
+CPU::CPU(const std::string &rom_path)
+    : halted(false), halt_bug(false), ime(false), ime_enable_pending(false) {
+  reg.a = reg.f = 0;
+  reg.b = reg.c = 0;
+  reg.d = reg.e = 0;
+  reg.h = reg.l = 0;
+
+  reg.sp = 0xFFFE; // typical GB start SP
+  reg.pc = 0x0100; // typical GB entry point
+
+  // Clear flags
+  reg.clear_flags();
+
+  // Initialize opcode tables
+  init_tables();
+
+  std::ifstream file(rom_path, std::ios::binary);
+  if (!file) {
+    throw std::runtime_error("Failed to open ROM: " + rom_path);
+  }
+
+  std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+
+  bus.load_rom(rom);
+
+  std::cout << "Initializing CPU\n";
+}
 
 auto CPU::step() -> uint8_t {
   if (ime_enable_pending) {
@@ -41,8 +72,10 @@ auto CPU::step() -> uint8_t {
 
 void CPU::init_tables() {
   // https://gbdev.io/pandocs/CPU_Instruction_Set.html
-  // BLOCK 0 -> first 6 tables done last 2 left
   op_table[0x00] = &CPU::nop;
+  op_table[0x01] = &CPU::stop;
+
+  op_table[0x18] = &CPU::jr;
 
   op_table[0x07] = &CPU::rlca;
   op_table[0x17] = &CPU::rla;
@@ -52,6 +85,10 @@ void CPU::init_tables() {
   op_table[0x2F] = &CPU::cpl;
   op_table[0x37] = &CPU::scf;
   op_table[0x3F] = &CPU::ccf;
+
+  for (uint8_t i = 0x20; i <= 0x38; i += 8) {
+    op_table[i] = &CPU::jr_cond;
+  }
 
   for (uint8_t i = 0x1; i <= 0x31; i += 16) {
     op_table[i] = &CPU::ld_r16_i16;
@@ -134,6 +171,7 @@ void CPU::init_tables() {
   }
 
   // BLOCK 3
+  // 3 tables done
   op_table[0xC6] = &CPU::add_a_i8;
   op_table[0xCE] = &CPU::adc_a_i8;
   op_table[0xD6] = &CPU::sub_a_i8;
@@ -145,9 +183,37 @@ void CPU::init_tables() {
 
   op_table[0xFB] = &CPU::ei;
   op_table[0xF3] = &CPU::di;
+
+  op_table[0xEA] = &CPU::jp_hl;
+  op_table[0xC3] = &CPU::jp_i16;
+  for (uint8_t i = 0xC2; i <= 0xDA; i += 8) {
+    op_table[i] = &CPU::jp_cond_i16;
+  }
+
+  for (uint8_t i = 0xC0; i <= 0xD8; i += 8) {
+    op_table[i] = &CPU::ret_cond;
+  }
+  // RET unconditional
+  op_table[0xC9] = &CPU::ret;
+  // RETI (return from interrupt)
+  op_table[0xD9] = &CPU::reti;
+
+  for (uint8_t i = 0xC4; i <= 0xDC; i += 8) {
+    op_table[i] = &CPU::call_cond;
+  }
+  // call unconditional
+  op_table[0xCD] = &CPU::call;
+  // rst instructions
+  for (uint8_t i = 0xC7; i <= 0xFF; i += 0x08) {
+    op_table[i] = &CPU::rst;
+  }
 }
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 4; }
+
+// TODO
+auto CPU::service_interrupt() -> uint8_t { return 4; }
+auto CPU::stop(uint8_t opcode) -> uint8_t { return 4; }
 
 auto CPU::ei(uint8_t opcode) -> uint8_t {
   ime_enable_pending = true; // IME will become 1 after next instruction
@@ -167,6 +233,195 @@ auto CPU::halt(uint8_t opcode) -> uint8_t {
   }
 
   return 4;
+}
+
+auto CPU::jp_i16(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+
+  uint16_t addr = (high << 8) | low;
+  reg.pc = addr;
+  return 16;
+}
+
+auto CPU::jp_cond_i16(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+
+  uint16_t addr = (high << 8) | low;
+
+  bool do_jump = false;
+  switch ((opcode >> 3) & 0x03) {
+  case 0:
+    do_jump = !reg.get_flag(gb::mem::FLAG_Z);
+    break; // NZ
+  case 1:
+    do_jump = reg.get_flag(gb::mem::FLAG_Z);
+    break; // Z
+  case 2:
+    do_jump = !reg.get_flag(gb::mem::FLAG_C);
+    break; // NC
+  case 3:
+    do_jump = reg.get_flag(gb::mem::FLAG_C);
+    break; // C
+  default:
+    __builtin_unreachable();
+  }
+
+  if (do_jump) {
+    reg.pc = addr;
+    return 16; // taken
+  }
+  return 12; // not taken
+}
+
+auto CPU::jr(uint8_t opcode) -> uint8_t {
+  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  reg.pc += offset;
+  return 12; // 12 cycles for JR n
+}
+
+auto CPU::jp_hl(uint8_t opcode) -> uint8_t {
+  reg.pc = reg.hl();
+  return 4;
+}
+
+auto CPU::jr_cond(uint8_t opcode) -> uint8_t {
+  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  bool do_jump = false;
+
+  switch ((opcode >> 3) & 0x03) {
+  case 0:
+    do_jump = !reg.get_flag(gb::mem::FLAG_Z);
+    break; // NZ
+  case 1:
+    do_jump = reg.get_flag(gb::mem::FLAG_Z);
+    break; // Z
+  case 2:
+    do_jump = !reg.get_flag(gb::mem::FLAG_C);
+    break; // NC
+  case 3:
+    do_jump = reg.get_flag(gb::mem::FLAG_C);
+    break; // C
+  default:
+    __builtin_unreachable();
+  }
+
+  if (do_jump) {
+    reg.pc += offset;
+    return 12; // taken
+  }
+  return 8; // not taken
+}
+
+auto CPU::reti(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.sp++);
+  uint8_t high = bus.read(reg.sp++);
+  reg.pc = (high << 8) | low;
+  ime = true; // enable interrupts
+  return 16;
+}
+
+auto CPU::ret(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.sp++);
+  uint8_t high = bus.read(reg.sp++);
+  reg.pc = (high << 8) | low;
+  return 16;
+}
+
+auto CPU::ret_cond(uint8_t opcode) -> uint8_t {
+  bool do_ret = false;
+  switch ((opcode >> 3) & 0x03) {
+  case 0:
+    do_ret = !reg.get_flag(gb::mem::FLAG_Z);
+    break; // NZ
+  case 1:
+    do_ret = reg.get_flag(gb::mem::FLAG_Z);
+    break; // Z
+  case 2:
+    do_ret = !reg.get_flag(gb::mem::FLAG_C);
+    break; // NC
+  case 3:
+    do_ret = reg.get_flag(gb::mem::FLAG_C);
+    break; // C
+  default:
+    __builtin_unreachable();
+  }
+
+  if (do_ret) {
+    uint8_t low = bus.read(reg.sp++);
+    uint8_t high = bus.read(reg.sp++);
+    reg.pc = (high << 8) | low;
+    return 20; // taken
+  }
+  return 8; // not taken
+}
+
+// Unconditional 16-bit call
+auto CPU::call(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+  uint16_t addr = (high << 8) | low;
+
+  // Push current PC onto stack (little-endian)
+  reg.sp -= 2;
+  bus.write(reg.sp, reg.pc & 0xFF);     // low byte
+  bus.write(reg.sp + 1, (reg.pc >> 8)); // high byte
+
+  // Jump to target
+  reg.pc = addr;
+  return 24;
+}
+
+// Conditional 16-bit call
+auto CPU::call_cond(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+  uint16_t addr = (high << 8) | low;
+
+  bool do_call = false;
+  switch ((opcode >> 3) & 0x03) {
+  case 0:
+    do_call = !reg.get_flag(gb::mem::FLAG_Z);
+    break; // NZ
+  case 1:
+    do_call = reg.get_flag(gb::mem::FLAG_Z);
+    break; // Z
+  case 2:
+    do_call = !reg.get_flag(gb::mem::FLAG_C);
+    break; // NC
+  case 3:
+    do_call = reg.get_flag(gb::mem::FLAG_C);
+    break; // C
+  default:
+    __builtin_unreachable();
+  }
+
+  if (do_call) {
+    // Push current PC and jump
+    reg.sp -= 2;
+    bus.write(reg.sp, reg.pc & 0xFF);
+    bus.write(reg.sp + 1, (reg.pc >> 8));
+    reg.pc = addr;
+    return 24; // taken
+  }
+
+  return 12; // not taken
+}
+
+// Reset to fixed vector (rst)
+auto CPU::rst(uint8_t opcode) -> uint8_t {
+  // RST target address = opcode & 0x38
+  uint16_t addr = opcode & 0x38;
+
+  // Push current PC
+  reg.sp -= 2;
+  bus.write(reg.sp, reg.pc & 0xFF);
+  bus.write(reg.sp + 1, (reg.pc >> 8));
+
+  // Jump to fixed address
+  reg.pc = addr;
+  return 16;
 }
 
 auto CPU::rra(uint8_t opcode) -> uint8_t {

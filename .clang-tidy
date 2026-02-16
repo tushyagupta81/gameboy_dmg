@@ -11,4 +11,6 @@ Checks: >
   -readability-convert-member-functions-to-static,
   -bugprone-easily-swappable-parameters,
   -readability-identifier-length,
+  -readability-make-member-function-const,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
 WarningsAsErrors: '*'

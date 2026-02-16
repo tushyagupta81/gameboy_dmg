@@ -4,26 +4,20 @@
 #include "memory.hpp"
 #include <array>
 #include <cstdint>
-#include <iostream>
 
 class CPU {
 public:
   using Instr = uint8_t (CPU::*)(uint8_t);
-
-  CPU() {
-    init_tables();
-    std::cout << "Initializing CPU\n";
-  }
-
+  CPU(const std::string &rom_path);
   auto step() -> uint8_t;
 
 private:
   Register reg{};
   Bus bus;
-  bool halted = false;
-  bool halt_bug = false;
-  bool ime = false; // if not already stored elsewhere
-  bool ime_enable_pending = false;
+  bool halted;
+  bool halt_bug;
+  bool ime;
+  bool ime_enable_pending;
 
   void init_tables();
   auto pending_interrupts() -> bool;
@@ -33,6 +27,16 @@ private:
 
   auto nop(uint8_t) -> uint8_t;
   auto halt(uint8_t) -> uint8_t;
+
+  // TODO
+  auto stop(uint8_t) -> uint8_t;
+
+  auto jr(uint8_t) -> uint8_t;
+  auto jr_cond(uint8_t) -> uint8_t;
+
+  auto jp_i16(uint8_t) -> uint8_t;
+  auto jp_cond_i16(uint8_t) -> uint8_t;
+  auto jp_hl(uint8_t) -> uint8_t;
 
   auto ld_r8_r8(uint8_t) -> uint8_t;
   auto ld_r8_i8(uint8_t) -> uint8_t;
@@ -84,6 +88,14 @@ private:
 
   auto ei(uint8_t) -> uint8_t;
   auto di(uint8_t) -> uint8_t;
+
+  auto ret(uint8_t) -> uint8_t;
+  auto ret_cond(uint8_t) -> uint8_t;
+  auto reti(uint8_t) -> uint8_t;
+
+  auto call(uint8_t) -> uint8_t;
+  auto call_cond(uint8_t) -> uint8_t;
+  auto rst(uint8_t) -> uint8_t;
 
   void write_reg(uint8_t dst, uint8_t val);
   auto read_reg(uint8_t src) -> uint8_t;

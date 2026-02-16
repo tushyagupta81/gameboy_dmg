@@ -1,6 +1,17 @@
+#include "cpu.hpp"
 #include <iostream>
 
-auto main() -> int {
-  std::cout<<"Hello world\n";
-  return 0;
+auto main(int argc, char** argv) -> int {
+    if (argc < 2) {
+        std::cerr << "Correct usage:\n\t./Gameboy <rom_path>\n";
+        return 1; // exit with error
+    }
+
+    std::string rom_path = argv[1];
+    CPU cpu(rom_path);  // initialize CPU with ROM
+
+    // Optionally: run a simple CPU loop here
+    // while (true) cpu.step();
+
+    return 0;
 }
