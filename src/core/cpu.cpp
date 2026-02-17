@@ -40,13 +40,16 @@ auto CPU::step() -> uint8_t {
   }
 
   if (ime && pending_interrupts()) {
-    halted = false;
     return service_interrupt();
   }
 
   if (halted) {
     if (pending_interrupts()) {
       halted = false;
+
+      if (!ime) {
+        halt_bug = true;
+      }
     }
     return 4;
   }
@@ -211,9 +214,62 @@ void CPU::init_tables() {
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 4; }
 
+auto CPU::service_interrupt() -> uint8_t {
+  if (!ime) {
+    return 0;
+  }
+
+  uint8_t interrupt_flag = bus.read(0xFF0F);
+  uint8_t interrupt_enable = bus.read(0xFFFF);
+
+  uint8_t pending = interrupt_flag & interrupt_enable;
+
+  if (pending == 0) {
+    return 0;
+  }
+
+  ime = false;
+  halted = false;
+
+  for (int i = 0; i < 5; i++) {
+    if ((pending & (1 << i)) != 0) {
+      interrupt_flag &= ~(1 << i);
+      bus.write(0xFF0F, interrupt_flag);
+
+      push_stack_u16(reg.pc);
+
+      switch (i) {
+      case 0:
+        reg.pc = 0x40;
+        break;
+      case 1:
+        reg.pc = 0x48;
+        break;
+      case 2:
+        reg.pc = 0x50;
+        break;
+      case 3:
+        reg.pc = 0x58;
+        break;
+      case 4:
+        reg.pc = 0x60;
+        break;
+      default:
+        __builtin_unreachable();
+      }
+
+      return 20;
+    }
+  }
+
+  return 0;
+}
+
 // TODO
-auto CPU::service_interrupt() -> uint8_t { return 4; }
-auto CPU::stop(uint8_t opcode) -> uint8_t { return 4; }
+auto CPU::stop(uint8_t opcode) -> uint8_t {
+  halted = true;
+  return 4;
+}
 
 auto CPU::ei(uint8_t opcode) -> uint8_t {
   ime_enable_pending = true; // IME will become 1 after next instruction
@@ -364,13 +420,17 @@ auto CPU::call(uint8_t opcode) -> uint8_t {
   uint16_t addr = (high << 8) | low;
 
   // Push current PC onto stack (little-endian)
-  reg.sp -= 2;
-  bus.write(reg.sp, reg.pc & 0xFF);     // low byte
-  bus.write(reg.sp + 1, (reg.pc >> 8)); // high byte
+  push_stack_u16(reg.pc);
 
   // Jump to target
   reg.pc = addr;
   return 24;
+}
+
+void CPU::push_stack_u16(uint16_t val) {
+  reg.sp -= 2;
+  bus.write(reg.sp, val & 0xFF);     // low byte
+  bus.write(reg.sp + 1, (val >> 8)); // high byte
 }
 
 // Conditional 16-bit call
@@ -399,9 +459,7 @@ auto CPU::call_cond(uint8_t opcode) -> uint8_t {
 
   if (do_call) {
     // Push current PC and jump
-    reg.sp -= 2;
-    bus.write(reg.sp, reg.pc & 0xFF);
-    bus.write(reg.sp + 1, (reg.pc >> 8));
+    push_stack_u16(reg.pc);
     reg.pc = addr;
     return 24; // taken
   }
@@ -415,9 +473,7 @@ auto CPU::rst(uint8_t opcode) -> uint8_t {
   uint16_t addr = opcode & 0x38;
 
   // Push current PC
-  reg.sp -= 2;
-  bus.write(reg.sp, reg.pc & 0xFF);
-  bus.write(reg.sp + 1, (reg.pc >> 8));
+  push_stack_u16(reg.pc);
 
   // Jump to fixed address
   reg.pc = addr;

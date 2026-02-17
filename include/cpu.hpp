@@ -22,7 +22,6 @@ private:
   void init_tables();
   auto pending_interrupts() -> bool;
 
-  // TODO
   auto service_interrupt() -> uint8_t;
 
   auto nop(uint8_t) -> uint8_t;
@@ -102,6 +101,8 @@ private:
 
   void write_r16(uint8_t dst, uint16_t val);
   auto read_r16(uint8_t src) -> uint16_t;
+
+  void push_stack_u16(uint16_t);
 
   std::array<Instr, 256> cb_table{}, op_table{};
 };
