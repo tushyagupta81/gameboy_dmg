@@ -13,4 +13,5 @@ Checks: >
   -readability-identifier-length,
   -readability-make-member-function-const,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -readability-function-cognitive-complexity,
 WarningsAsErrors: '*'

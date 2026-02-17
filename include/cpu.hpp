@@ -13,6 +13,8 @@ public:
   CPU(const std::string &rom_path);
   auto step() -> uint8_t;
 
+void dump_opcode_table() const;
+
 private:
   std::ofstream trace;
 
@@ -30,6 +32,7 @@ private:
 
   auto nop(uint8_t) -> uint8_t;
   auto halt(uint8_t) -> uint8_t;
+  auto illegal(uint8_t) -> uint8_t;
 
   // TODO
   auto stop(uint8_t) -> uint8_t;

@@ -2,6 +2,7 @@
 #include "memory_map.hpp"
 #include <cstdint>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <string>
 
@@ -85,8 +86,6 @@ auto CPU::step() -> uint8_t {
         << "OP:" << std::setw(2) << (int)opcode << "\n";
 #endif // TRACE
 
-  std::cout<<std::hex<<(int)opcode<<'\n';
-
   if (!halt_bug) {
     reg.pc++;
   } else {
@@ -105,142 +104,160 @@ auto CPU::step() -> uint8_t {
 }
 
 void CPU::init_tables() {
-  // https://gbdev.io/pandocs/CPU_Instruction_Set.html
-  op_table[0x00] = &CPU::nop;
-  op_table[0x10] = &CPU::stop;
+  op_table.fill(&CPU::illegal);
 
-  op_table[0x18] = &CPU::jr;
-
-  op_table[0x07] = &CPU::rlca;
-  op_table[0x17] = &CPU::rla;
-  op_table[0x0F] = &CPU::rrca;
-  op_table[0x1F] = &CPU::rra;
-  op_table[0x27] = &CPU::daa;
-  op_table[0x2F] = &CPU::cpl;
-  op_table[0x37] = &CPU::scf;
-  op_table[0x3F] = &CPU::ccf;
-
-  for (uint8_t i = 0x20; i <= 0x38; i += 8) {
-    op_table[i] = &CPU::jr_cond;
-  }
-
-  for (uint8_t i = 0x01; i <= 0x31; i += 16) {
-    op_table[i] = &CPU::ld_r16_i16;
-  }
-
-  for (uint8_t i = 0x02; i <= 0x32; i += 16) {
-    op_table[i] = &CPU::ld_mem_a;
-  }
-
-  for (uint8_t i = 0x03; i <= 0x33; i += 16) {
-    op_table[i] = &CPU::inc_r16;
-  }
-
-  for (uint8_t i = 0x04; i <= 0x3C; i += 8) {
-    op_table[i] = &CPU::inc_r8;
-  }
-
-  for (uint8_t i = 0x05; i <= 0x3D; i += 8) {
-    op_table[i] = &CPU::dec_r8;
-  }
-
-  for (uint8_t i = 0x06; i <= 0x3E; i += 8) {
-    op_table[i] = &CPU::ld_r8_i8;
-  }
-
-  op_table[0x08] = &CPU::ld_i16_sp;
-
-  for (uint8_t i = 0x09; i <= 0x39; i += 16) {
-    op_table[i] = &CPU::add_hl_r16;
-  }
-
-  for (uint8_t i = 0x0A; i <= 0x3A; i += 16) {
-    op_table[i] = &CPU::ld_a_mem;
-  }
-
-  for (uint8_t i = 0x0B; i <= 0x3B; i += 16) {
-    op_table[i] = &CPU::dec_r16;
-  }
-
-  // BLOCK 1 halt inst left
-  for (uint8_t i = 0x40; i <= 0x7F; i++) {
-    if (i == 0x76) {
-      op_table[i] = &CPU::halt;
-      continue;
+  auto assign = [&](uint8_t opcode, auto fn) -> auto {
+    if (op_table[opcode] != &CPU::illegal) {
+      std::cerr << "Opcode 0x" << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(opcode) << " overwritten!\n";
+      std::abort();
     }
-    op_table[i] = &CPU::ld_r8_r8;
+    op_table[opcode] = fn;
+  };
+
+  // ===== Misc =====
+  assign(0x00, &CPU::nop);
+  assign(0x10, &CPU::stop);
+  assign(0x76, &CPU::halt);
+
+  assign(0x07, &CPU::rlca);
+  assign(0x17, &CPU::rla);
+  assign(0x0F, &CPU::rrca);
+  assign(0x1F, &CPU::rra);
+  assign(0x27, &CPU::daa);
+  assign(0x2F, &CPU::cpl);
+  assign(0x37, &CPU::scf);
+  assign(0x3F, &CPU::ccf);
+
+  assign(0xFB, &CPU::ei);
+  assign(0xF3, &CPU::di);
+
+  // ===== JR =====
+  assign(0x18, &CPU::jr);
+  for (uint8_t op : {0x20, 0x28, 0x30, 0x38}) {
+    assign(op, &CPU::jr_cond);
   }
 
-  // BLOCK 2
-  for (uint8_t i = 0x80; i <= 0x87; i++) {
-    op_table[i] = &CPU::add_a_r8;
+  // ===== 16-bit loads =====
+  for (uint8_t op : {0x01, 0x11, 0x21, 0x31}) {
+    assign(op, &CPU::ld_r16_i16);
   }
 
-  for (uint8_t i = 0x88; i <= 0x8F; i++) {
-    op_table[i] = &CPU::adc_a_r8;
+  for (uint8_t op : {0x02, 0x12, 0x22, 0x32}) {
+    assign(op, &CPU::ld_mem_a);
   }
 
-  for (uint8_t i = 0x90; i <= 0x97; i++) {
-    op_table[i] = &CPU::sub_a_r8;
+  for (uint8_t op : {0x0A, 0x1A, 0x2A, 0x3A}) {
+    assign(op, &CPU::ld_a_mem);
   }
 
-  for (uint8_t i = 0x98; i <= 0x9F; i++) {
-    op_table[i] = &CPU::sbc_a_r8;
+  assign(0x08, &CPU::ld_i16_sp);
+
+  // ===== 16-bit inc/dec =====
+  for (uint8_t op : {0x03, 0x13, 0x23, 0x33}) {
+    assign(op, &CPU::inc_r16);
   }
 
-  for (uint8_t i = 0xA0; i <= 0xA7; i++) {
-    op_table[i] = &CPU::and_a_r8;
+  for (uint8_t op : {0x0B, 0x1B, 0x2B, 0x3B}) {
+    assign(op, &CPU::dec_r16);
   }
 
-  for (uint8_t i = 0xA8; i <= 0xAF; i++) {
-    op_table[i] = &CPU::xor_a_r8;
+  for (uint8_t op : {0x09, 0x19, 0x29, 0x39}) {
+    assign(op, &CPU::add_hl_r16);
   }
 
-  for (uint8_t i = 0xB0; i <= 0xB7; i++) {
-    op_table[i] = &CPU::or_a_r8;
+  // ===== 8-bit inc/dec/load immediate =====
+  for (uint8_t op : {0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x34, 0x3C}) {
+    assign(op, &CPU::inc_r8);
   }
 
-  for (uint8_t i = 0xB8; i <= 0xBF; i++) {
-    op_table[i] = &CPU::cp_a_r8;
+  for (uint8_t op : {0x05, 0x0D, 0x15, 0x1D, 0x25, 0x2D, 0x35, 0x3D}) {
+    assign(op, &CPU::dec_r8);
   }
 
-  // BLOCK 3
-  // 3 tables done
-  op_table[0xC6] = &CPU::add_a_i8;
-  op_table[0xCE] = &CPU::adc_a_i8;
-  op_table[0xD6] = &CPU::sub_a_i8;
-  op_table[0xDE] = &CPU::sbc_a_i8;
-  op_table[0xE6] = &CPU::and_a_i8;
-  op_table[0xEE] = &CPU::xor_a_i8;
-  op_table[0xF6] = &CPU::or_a_i8;
-  op_table[0xFE] = &CPU::cp_a_i8;
-
-  op_table[0xFB] = &CPU::ei;
-  op_table[0xF3] = &CPU::di;
-
-  op_table[0xE9] = &CPU::jp_hl;
-  op_table[0xC3] = &CPU::jp_i16;
-  for (uint8_t i = 0xC2; i <= 0xDA; i += 8) {
-    op_table[i] = &CPU::jp_cond_i16;
+  for (uint8_t op : {0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E}) {
+    assign(op, &CPU::ld_r8_i8);
   }
 
-  for (uint8_t i = 0xC0; i <= 0xD8; i += 8) {
-    op_table[i] = &CPU::ret_cond;
+  // ===== LD r8, r8 block =====
+  for (uint16_t op = 0x40; op <= 0x7F; ++op) {
+    if (op == 0x76) {
+      continue; // HALT already assigned
+    }
+    assign(static_cast<uint8_t>(op), &CPU::ld_r8_r8);
   }
-  // RET unconditional
-  op_table[0xC9] = &CPU::ret;
-  // RETI (return from interrupt)
-  op_table[0xD9] = &CPU::reti;
 
-  for (uint8_t i = 0xC4; i <= 0xDC; i += 8) {
-    op_table[i] = &CPU::call_cond;
+  // ===== ALU r8 =====
+  for (uint8_t op = 0x80; op <= 0x87; ++op) {
+    assign(op, &CPU::add_a_r8);
   }
-  // call unconditional
-  op_table[0xCD] = &CPU::call;
-  // rst instructions
-  for (uint16_t i = 0xC7; i <= 0xFF; i += 0x08) {
-    op_table[i] = &CPU::rst;
+  for (uint8_t op = 0x88; op <= 0x8F; ++op) {
+    assign(op, &CPU::adc_a_r8);
   }
+  for (uint8_t op = 0x90; op <= 0x97; ++op) {
+    assign(op, &CPU::sub_a_r8);
+  }
+  for (uint8_t op = 0x98; op <= 0x9F; ++op) {
+    assign(op, &CPU::sbc_a_r8);
+  }
+  for (uint8_t op = 0xA0; op <= 0xA7; ++op) {
+    assign(op, &CPU::and_a_r8);
+  }
+  for (uint8_t op = 0xA8; op <= 0xAF; ++op) {
+    assign(op, &CPU::xor_a_r8);
+  }
+  for (uint8_t op = 0xB0; op <= 0xB7; ++op) {
+    assign(op, &CPU::or_a_r8);
+  }
+  for (uint8_t op = 0xB8; op <= 0xBF; ++op) {
+    assign(op, &CPU::cp_a_r8);
+  }
+
+  // ===== ALU immediate =====
+  assign(0xC6, &CPU::add_a_i8);
+  assign(0xCE, &CPU::adc_a_i8);
+  assign(0xD6, &CPU::sub_a_i8);
+  assign(0xDE, &CPU::sbc_a_i8);
+  assign(0xE6, &CPU::and_a_i8);
+  assign(0xEE, &CPU::xor_a_i8);
+  assign(0xF6, &CPU::or_a_i8);
+  assign(0xFE, &CPU::cp_a_i8);
+
+  // ===== JP =====
+  assign(0xC3, &CPU::jp_i16);
+  assign(0xE9, &CPU::jp_hl);
+  for (uint8_t op : {0xC2, 0xCA, 0xD2, 0xDA}) {
+    assign(op, &CPU::jp_cond_i16);
+  }
+
+  // ===== RET =====
+  for (uint8_t op : {0xC0, 0xC8, 0xD0, 0xD8}) {
+    assign(op, &CPU::ret_cond);
+  }
+
+  assign(0xC9, &CPU::ret);
+  assign(0xD9, &CPU::reti);
+
+  // ===== CALL =====
+  assign(0xCD, &CPU::call);
+  for (uint8_t op : {0xC4, 0xCC, 0xD4, 0xDC}) {
+    assign(op, &CPU::call_cond);
+  }
+
+  // ===== RST =====
+  for (uint8_t op : {0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF}) {
+    assign(op, &CPU::rst);
+  }
+
+  // Optional: coverage report
+  int implemented = 0;
+  for (auto fn : op_table) {
+    if (fn != &CPU::illegal) {
+      implemented++;
+    }
+  }
+
+  std::cout << "Implemented opcodes: " << implemented << "/256\n";
 }
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 4; }
@@ -1201,5 +1218,21 @@ auto CPU::read_r16(uint8_t src) -> uint16_t {
     return reg.sp;
   default:
     __builtin_unreachable();
+  }
+}
+
+auto CPU::illegal(uint8_t opcode) -> uint8_t {
+  std::cerr << "Illegal opcode: 0x" << std::hex << std::uppercase
+            << std::setw(2) << std::setfill('0') << static_cast<int>(opcode)
+            << " at PC=0x" << std::setw(4) << reg.pc - 1 << "\n";
+  std::abort();
+}
+
+void CPU::dump_opcode_table() const {
+  for (int i = 0; i < 256; ++i) {
+    if (op_table[i] == &CPU::illegal) {
+      std::cout << "Missing opcode: 0x" << std::hex << std::uppercase
+                << std::setw(2) << std::setfill('0') << i << "\n";
+    }
   }
 }
