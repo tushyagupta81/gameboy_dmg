@@ -3,9 +3,15 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <string>
+
+#ifdef TRACE
+#include <iomanip>
+#endif // TRACE
 
 CPU::CPU(const std::string &rom_path)
-    : halted(false), halt_bug(false), ime(false), ime_enable_pending(false) {
+    : halted(false), halt_bug(false), ime(false), ime_enable_pending(false),
+      trace("trace.log"), bus() {
   reg.a = reg.f = 0;
   reg.b = reg.c = 0;
   reg.d = reg.e = 0;
@@ -14,11 +20,17 @@ CPU::CPU(const std::string &rom_path)
   reg.sp = 0xFFFE; // typical GB start SP
   reg.pc = 0x0100; // typical GB entry point
 
+  std::cout << "Initialized registers\n";
+
   // Clear flags
   reg.clear_flags();
 
+  std::cout << "Cleared Falgs\n";
+
   // Initialize opcode tables
   init_tables();
+
+  std::cout << "Initialized Tables\n";
 
   std::ifstream file(rom_path, std::ios::binary);
   if (!file) {
@@ -30,7 +42,9 @@ CPU::CPU(const std::string &rom_path)
 
   bus.load_rom(rom);
 
-  std::cout << "Initializing CPU\n";
+  std::cout << "Loaded ROM\n";
+
+  std::cout << "Initialized CPU\n";
 }
 
 auto CPU::step() -> uint8_t {
@@ -54,7 +68,24 @@ auto CPU::step() -> uint8_t {
     return 4;
   }
 
+  uint16_t pc_before = reg.pc;
   uint8_t opcode = bus.read(reg.pc);
+#ifdef TRACE
+  trace << std::hex << std::uppercase;
+  trace << "A:" << std::setw(2) << (int)reg.a << " "
+        << "F:" << std::setw(2) << (int)reg.f << " "
+        << "B:" << std::setw(2) << (int)reg.b << " "
+        << "C:" << std::setw(2) << (int)reg.c << " "
+        << "D:" << std::setw(2) << (int)reg.d << " "
+        << "E:" << std::setw(2) << (int)reg.e << " "
+        << "H:" << std::setw(2) << (int)reg.h << " "
+        << "L:" << std::setw(2) << (int)reg.l << " "
+        << "SP:" << std::setw(4) << reg.sp << " "
+        << "PC:" << std::setw(4) << pc_before << " "
+        << "OP:" << std::setw(2) << (int)opcode << "\n";
+#endif // TRACE
+
+  std::cout<<std::hex<<(int)opcode<<'\n';
 
   if (!halt_bug) {
     reg.pc++;
@@ -76,7 +107,7 @@ auto CPU::step() -> uint8_t {
 void CPU::init_tables() {
   // https://gbdev.io/pandocs/CPU_Instruction_Set.html
   op_table[0x00] = &CPU::nop;
-  op_table[0x01] = &CPU::stop;
+  op_table[0x10] = &CPU::stop;
 
   op_table[0x18] = &CPU::jr;
 
@@ -93,15 +124,15 @@ void CPU::init_tables() {
     op_table[i] = &CPU::jr_cond;
   }
 
-  for (uint8_t i = 0x1; i <= 0x31; i += 16) {
+  for (uint8_t i = 0x01; i <= 0x31; i += 16) {
     op_table[i] = &CPU::ld_r16_i16;
   }
 
-  for (uint8_t i = 0x2; i <= 0x32; i += 16) {
+  for (uint8_t i = 0x02; i <= 0x32; i += 16) {
     op_table[i] = &CPU::ld_mem_a;
   }
 
-  for (uint8_t i = 0x3; i <= 0x33; i += 16) {
+  for (uint8_t i = 0x03; i <= 0x33; i += 16) {
     op_table[i] = &CPU::inc_r16;
   }
 
@@ -113,21 +144,21 @@ void CPU::init_tables() {
     op_table[i] = &CPU::dec_r8;
   }
 
-  for (uint8_t i = 0x6; i <= 0x3E; i += 8) {
+  for (uint8_t i = 0x06; i <= 0x3E; i += 8) {
     op_table[i] = &CPU::ld_r8_i8;
   }
 
   op_table[0x08] = &CPU::ld_i16_sp;
 
-  for (uint8_t i = 0x9; i <= 0x39; i += 16) {
+  for (uint8_t i = 0x09; i <= 0x39; i += 16) {
     op_table[i] = &CPU::add_hl_r16;
   }
 
-  for (uint8_t i = 0xA; i <= 0x3A; i += 16) {
+  for (uint8_t i = 0x0A; i <= 0x3A; i += 16) {
     op_table[i] = &CPU::ld_a_mem;
   }
 
-  for (uint8_t i = 0xB; i <= 0x3B; i += 16) {
+  for (uint8_t i = 0x0B; i <= 0x3B; i += 16) {
     op_table[i] = &CPU::dec_r16;
   }
 
@@ -187,7 +218,7 @@ void CPU::init_tables() {
   op_table[0xFB] = &CPU::ei;
   op_table[0xF3] = &CPU::di;
 
-  op_table[0xEA] = &CPU::jp_hl;
+  op_table[0xE9] = &CPU::jp_hl;
   op_table[0xC3] = &CPU::jp_i16;
   for (uint8_t i = 0xC2; i <= 0xDA; i += 8) {
     op_table[i] = &CPU::jp_cond_i16;
@@ -207,7 +238,7 @@ void CPU::init_tables() {
   // call unconditional
   op_table[0xCD] = &CPU::call;
   // rst instructions
-  for (uint8_t i = 0xC7; i <= 0xFF; i += 0x08) {
+  for (uint16_t i = 0xC7; i <= 0xFF; i += 0x08) {
     op_table[i] = &CPU::rst;
   }
 }

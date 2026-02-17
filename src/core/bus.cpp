@@ -3,8 +3,10 @@
 #include "memory_map.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 
 auto Bus::read(uint16_t addr) const -> uint8_t {
+  // std::cout<<std::hex<<addr<<'\n';
   using namespace gb::mem;
 
   if (addr <= ROM_END) {
@@ -51,7 +53,7 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
 }
 
 void Bus::write(uint16_t addr, uint8_t value) {
-
+  // std::cout<<std::hex<<addr<<'\n';
   using namespace gb::mem;
 
   // 0000–7FFF : ROM (usually MBC control)

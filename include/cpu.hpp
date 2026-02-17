@@ -4,6 +4,8 @@
 #include "memory.hpp"
 #include <array>
 #include <cstdint>
+#include <string>
+#include <fstream>
 
 class CPU {
 public:
@@ -12,6 +14,8 @@ public:
   auto step() -> uint8_t;
 
 private:
+  std::ofstream trace;
+
   Register reg{};
   Bus bus;
   bool halted;

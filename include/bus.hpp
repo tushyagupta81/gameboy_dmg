@@ -2,6 +2,7 @@
 
 #include "memory.hpp"
 #include <cstdint>
+#include <vector>
 
 class Bus {
 private:

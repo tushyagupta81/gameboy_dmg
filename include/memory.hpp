@@ -3,7 +3,6 @@
 #include "memory_map.hpp"
 #include <array>
 #include <cstdint>
-#include <vector>
 
 #define F_MASK 0xF0
 #define ROM_SIZE 0x8000
@@ -83,7 +82,7 @@ struct Register {
 
 struct Memory {
   // 0000 -> 7FFF
-  std::vector<uint8_t> rom;
+  std::array<uint8_t, ROM_SIZE> rom;
 
   // 8000 -> 9FFF
   std::array<uint8_t, VRAM_SIZE> vram;
