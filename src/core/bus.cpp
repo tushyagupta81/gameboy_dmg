@@ -38,7 +38,8 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
   }
 
   if (addr >= IO_START && addr <= IO_END) {
-    return OPEN_BUS; // not implemented yet
+    return mem.io[addr - IO_START];
+    // return OPEN_BUS; // not implemented yet
   }
 
   if (addr >= HRAM_START && addr <= HRAM_END) {
@@ -99,6 +100,13 @@ void Bus::write(uint16_t addr, uint8_t value) {
 
   // FF00–FF7F : IO Registers
   if (addr >= IO_START && addr <= IO_END) {
+    mem.io[addr - IO_START] = value;
+
+    if (addr == 0xFF02 && value == 0x81) {
+      char c = static_cast<char>(mem.io[0xFF01 - IO_START]);
+      std::cout << c << std::flush;
+    }
+
     // TODO: delegate to IO subsystem
     return;
   }

@@ -128,5 +128,20 @@ private:
   void push_stack_u16(uint16_t);
   auto pop() -> uint16_t;
 
+  // === Prefix Table ===
+
+  auto res(uint8_t) -> uint8_t;
+  auto set(uint8_t) -> uint8_t;
+  auto bit(uint8_t) -> uint8_t;
+
+  auto rlc(uint8_t) -> uint8_t;
+  auto rrc(uint8_t) -> uint8_t;
+  auto rl(uint8_t) -> uint8_t;
+  auto rr(uint8_t) -> uint8_t;
+  auto sla(uint8_t) -> uint8_t;
+  auto sra(uint8_t) -> uint8_t;
+  auto swap(uint8_t) -> uint8_t;
+  auto srl(uint8_t) -> uint8_t;
+
   std::array<Instr, 256> cb_table{}, op_table{};
 };

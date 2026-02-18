@@ -10,6 +10,7 @@
 #define EXRAM_SIZE 0x2000
 #define WRAM_SIZE 0x2000
 #define OAM_SIZE 0xA0
+#define IO_SIZE 0x7F
 #define HRAM_SIZE 0x7F
 
 struct Register {
@@ -95,6 +96,8 @@ struct Memory {
 
   // FE00 -> FE9F
   std::array<uint8_t, OAM_SIZE> oam;
+
+  std::array<uint8_t, IO_SIZE> io;
 
   // FF80 -> FFFE
   std::array<uint8_t, HRAM_SIZE> hram;

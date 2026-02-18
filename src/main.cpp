@@ -11,7 +11,7 @@ auto main(int argc, char **argv) -> int {
   std::string rom_path = argv[1];
   CPU cpu(rom_path); // initialize CPU with ROM
 
-  cpu.dump_opcode_table();
+  // cpu.dump_opcode_table();
 
   // Optionally: run a simple CPU loop here
   while (true) {

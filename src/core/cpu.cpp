@@ -49,11 +49,6 @@ CPU::CPU(const std::string &rom_path)
 }
 
 auto CPU::step() -> uint8_t {
-  if (ime_enable_pending) {
-    ime = true;
-    ime_enable_pending = false;
-  }
-
   if (ime && pending_interrupts()) {
     return service_interrupt();
   }
@@ -100,6 +95,11 @@ auto CPU::step() -> uint8_t {
     cycles = (this->*op_table[opcode])(opcode);
   }
 
+  if (ime_enable_pending) {
+    ime = true;
+    ime_enable_pending = false;
+  }
+
   return cycles;
 }
 
@@ -107,7 +107,7 @@ void CPU::init_tables() {
   op_table.fill(&CPU::illegal);
   cb_table.fill(&CPU::illegal);
 
-  auto assign = [&](uint8_t opcode, auto fn) -> auto {
+  auto assign_op = [&](uint8_t opcode, auto fn) -> auto {
     if (op_table[opcode] != &CPU::illegal) {
       std::cerr << "Opcode 0x" << std::hex << std::setw(2) << std::setfill('0')
                 << static_cast<int>(opcode) << " overwritten!\n";
@@ -116,68 +116,77 @@ void CPU::init_tables() {
     op_table[opcode] = fn;
   };
 
+  auto assign_cb = [&](uint8_t opcode, auto fn) -> auto {
+    if (cb_table[opcode] != &CPU::illegal) {
+      std::cerr << "Opcode 0x" << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(opcode) << " overwritten!\n";
+      std::abort();
+    }
+    cb_table[opcode] = fn;
+  };
+
   // ===== Misc =====
-  assign(0x00, &CPU::nop);
-  assign(0x10, &CPU::stop);
-  assign(0x76, &CPU::halt);
+  assign_op(0x00, &CPU::nop);
+  assign_op(0x10, &CPU::stop);
+  assign_op(0x76, &CPU::halt);
 
-  assign(0x07, &CPU::rlca);
-  assign(0x17, &CPU::rla);
-  assign(0x0F, &CPU::rrca);
-  assign(0x1F, &CPU::rra);
-  assign(0x27, &CPU::daa);
-  assign(0x2F, &CPU::cpl);
-  assign(0x37, &CPU::scf);
-  assign(0x3F, &CPU::ccf);
+  assign_op(0x07, &CPU::rlca);
+  assign_op(0x17, &CPU::rla);
+  assign_op(0x0F, &CPU::rrca);
+  assign_op(0x1F, &CPU::rra);
+  assign_op(0x27, &CPU::daa);
+  assign_op(0x2F, &CPU::cpl);
+  assign_op(0x37, &CPU::scf);
+  assign_op(0x3F, &CPU::ccf);
 
-  assign(0xFB, &CPU::ei);
-  assign(0xF3, &CPU::di);
+  assign_op(0xFB, &CPU::ei);
+  assign_op(0xF3, &CPU::di);
 
   // ===== JR =====
-  assign(0x18, &CPU::jr);
+  assign_op(0x18, &CPU::jr);
   for (uint8_t op : {0x20, 0x28, 0x30, 0x38}) {
-    assign(op, &CPU::jr_cond);
+    assign_op(op, &CPU::jr_cond);
   }
 
   // ===== 16-bit loads =====
   for (uint8_t op : {0x01, 0x11, 0x21, 0x31}) {
-    assign(op, &CPU::ld_r16_i16);
+    assign_op(op, &CPU::ld_r16_i16);
   }
 
   for (uint8_t op : {0x02, 0x12, 0x22, 0x32}) {
-    assign(op, &CPU::ld_mem_a);
+    assign_op(op, &CPU::ld_mem_a);
   }
 
   for (uint8_t op : {0x0A, 0x1A, 0x2A, 0x3A}) {
-    assign(op, &CPU::ld_a_mem);
+    assign_op(op, &CPU::ld_a_mem);
   }
 
-  assign(0x08, &CPU::ld_i16_sp);
+  assign_op(0x08, &CPU::ld_i16_sp);
 
   // ===== 16-bit inc/dec =====
   for (uint8_t op : {0x03, 0x13, 0x23, 0x33}) {
-    assign(op, &CPU::inc_r16);
+    assign_op(op, &CPU::inc_r16);
   }
 
   for (uint8_t op : {0x0B, 0x1B, 0x2B, 0x3B}) {
-    assign(op, &CPU::dec_r16);
+    assign_op(op, &CPU::dec_r16);
   }
 
   for (uint8_t op : {0x09, 0x19, 0x29, 0x39}) {
-    assign(op, &CPU::add_hl_r16);
+    assign_op(op, &CPU::add_hl_r16);
   }
 
   // ===== 8-bit inc/dec/load immediate =====
   for (uint8_t op : {0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x34, 0x3C}) {
-    assign(op, &CPU::inc_r8);
+    assign_op(op, &CPU::inc_r8);
   }
 
   for (uint8_t op : {0x05, 0x0D, 0x15, 0x1D, 0x25, 0x2D, 0x35, 0x3D}) {
-    assign(op, &CPU::dec_r8);
+    assign_op(op, &CPU::dec_r8);
   }
 
   for (uint8_t op : {0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E}) {
-    assign(op, &CPU::ld_r8_i8);
+    assign_op(op, &CPU::ld_r8_i8);
   }
 
   // ===== LD r8, r8 block =====
@@ -185,103 +194,150 @@ void CPU::init_tables() {
     if (op == 0x76) {
       continue; // HALT already assigned
     }
-    assign(static_cast<uint8_t>(op), &CPU::ld_r8_r8);
+    assign_op(static_cast<uint8_t>(op), &CPU::ld_r8_r8);
   }
 
   // ===== ALU r8 =====
   for (uint8_t op = 0x80; op <= 0x87; ++op) {
-    assign(op, &CPU::add_a_r8);
+    assign_op(op, &CPU::add_a_r8);
   }
   for (uint8_t op = 0x88; op <= 0x8F; ++op) {
-    assign(op, &CPU::adc_a_r8);
+    assign_op(op, &CPU::adc_a_r8);
   }
   for (uint8_t op = 0x90; op <= 0x97; ++op) {
-    assign(op, &CPU::sub_a_r8);
+    assign_op(op, &CPU::sub_a_r8);
   }
   for (uint8_t op = 0x98; op <= 0x9F; ++op) {
-    assign(op, &CPU::sbc_a_r8);
+    assign_op(op, &CPU::sbc_a_r8);
   }
   for (uint8_t op = 0xA0; op <= 0xA7; ++op) {
-    assign(op, &CPU::and_a_r8);
+    assign_op(op, &CPU::and_a_r8);
   }
   for (uint8_t op = 0xA8; op <= 0xAF; ++op) {
-    assign(op, &CPU::xor_a_r8);
+    assign_op(op, &CPU::xor_a_r8);
   }
   for (uint8_t op = 0xB0; op <= 0xB7; ++op) {
-    assign(op, &CPU::or_a_r8);
+    assign_op(op, &CPU::or_a_r8);
   }
   for (uint8_t op = 0xB8; op <= 0xBF; ++op) {
-    assign(op, &CPU::cp_a_r8);
+    assign_op(op, &CPU::cp_a_r8);
   }
 
   // ===== ALU immediate =====
-  assign(0xC6, &CPU::add_a_i8);
-  assign(0xCE, &CPU::adc_a_i8);
-  assign(0xD6, &CPU::sub_a_i8);
-  assign(0xDE, &CPU::sbc_a_i8);
-  assign(0xE6, &CPU::and_a_i8);
-  assign(0xEE, &CPU::xor_a_i8);
-  assign(0xF6, &CPU::or_a_i8);
-  assign(0xFE, &CPU::cp_a_i8);
+  assign_op(0xC6, &CPU::add_a_i8);
+  assign_op(0xCE, &CPU::adc_a_i8);
+  assign_op(0xD6, &CPU::sub_a_i8);
+  assign_op(0xDE, &CPU::sbc_a_i8);
+  assign_op(0xE6, &CPU::and_a_i8);
+  assign_op(0xEE, &CPU::xor_a_i8);
+  assign_op(0xF6, &CPU::or_a_i8);
+  assign_op(0xFE, &CPU::cp_a_i8);
 
   // ===== JP =====
-  assign(0xC3, &CPU::jp_i16);
-  assign(0xE9, &CPU::jp_hl);
+  assign_op(0xC3, &CPU::jp_i16);
+  assign_op(0xE9, &CPU::jp_hl);
   for (uint8_t op : {0xC2, 0xCA, 0xD2, 0xDA}) {
-    assign(op, &CPU::jp_cond_i16);
+    assign_op(op, &CPU::jp_cond_i16);
   }
 
   // ===== RET =====
   for (uint8_t op : {0xC0, 0xC8, 0xD0, 0xD8}) {
-    assign(op, &CPU::ret_cond);
+    assign_op(op, &CPU::ret_cond);
   }
 
-  assign(0xC9, &CPU::ret);
-  assign(0xD9, &CPU::reti);
+  assign_op(0xC9, &CPU::ret);
+  assign_op(0xD9, &CPU::reti);
 
   // ===== CALL =====
-  assign(0xCD, &CPU::call);
+  assign_op(0xCD, &CPU::call);
   for (uint8_t op : {0xC4, 0xCC, 0xD4, 0xDC}) {
-    assign(op, &CPU::call_cond);
+    assign_op(op, &CPU::call_cond);
   }
 
   // ===== RST =====
   for (uint8_t op : {0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF}) {
-    assign(op, &CPU::rst);
+    assign_op(op, &CPU::rst);
   }
 
   // ===== PUSH =====
   for (uint8_t op : {0xC5, 0xD5, 0xE5, 0xF5}) {
-    assign(op, &CPU::push_r16);
+    assign_op(op, &CPU::push_r16);
   }
 
   // ===== POP =====
   for (uint8_t op : {0xC1, 0xD1, 0xE1, 0xF1}) {
-    assign(op, &CPU::pop_r16);
+    assign_op(op, &CPU::pop_r16);
   }
 
   // ===== HIGH MEM =====
-  assign(0xE0, &CPU::ldh_i8_a);
-  assign(0xF0, &CPU::ldh_a_i8);
-  assign(0xE2, &CPU::ldh_c_a);
-  assign(0xF2, &CPU::ldh_a_c);
+  assign_op(0xE0, &CPU::ldh_i8_a);
+  assign_op(0xF0, &CPU::ldh_a_i8);
+  assign_op(0xE2, &CPU::ldh_c_a);
+  assign_op(0xF2, &CPU::ldh_a_c);
 
-  assign(0xEA, &CPU::ld_i16_a);
-  assign(0xFA, &CPU::ld_a_i16);
+  assign_op(0xEA, &CPU::ld_i16_a);
+  assign_op(0xFA, &CPU::ld_a_i16);
 
-  assign(0xE8, &CPU::add_sp_i8);
-  assign(0xF8, &CPU::ld_hl_sp_i8);
-  assign(0xF9, &CPU::ld_sp_hl);
+  assign_op(0xE8, &CPU::add_sp_i8);
+  assign_op(0xF8, &CPU::ld_hl_sp_i8);
+  assign_op(0xF9, &CPU::ld_sp_hl);
 
   // Optional: coverage report
-  int implemented = 0;
+  int implemented_op = 0;
   for (auto fn : op_table) {
     if (fn != &CPU::illegal) {
-      implemented++;
+      implemented_op++;
     }
   }
 
-  std::cout << "Implemented opcodes: " << implemented << "/256\n";
+  std::cout << "Implemented opcodes: " << implemented_op << "/256\n";
+
+  // === Prefix Table ===
+
+  for (uint8_t op = 0x00; op <= 0x07; op++) {
+    assign_cb(op, &CPU::rlc);
+  }
+  for (uint8_t op = 0x08; op <= 0x0F; op++) {
+    assign_cb(op, &CPU::rrc);
+  }
+  for (uint8_t op = 0x10; op <= 0x17; op++) {
+    assign_cb(op, &CPU::rl);
+  }
+  for (uint8_t op = 0x18; op <= 0x1F; op++) {
+    assign_cb(op, &CPU::rr);
+  }
+  for (uint8_t op = 0x20; op <= 0x27; op++) {
+    assign_cb(op, &CPU::sla);
+  }
+  for (uint8_t op = 0x28; op <= 0x2F; op++) {
+    assign_cb(op, &CPU::sra);
+  }
+  for (uint8_t op = 0x30; op <= 0x37; op++) {
+    assign_cb(op, &CPU::swap);
+  }
+  for (uint8_t op = 0x38; op <= 0x3F; op++) {
+    assign_cb(op, &CPU::srl);
+  }
+
+  for (uint16_t op = 0x40; op <= 0x7F; ++op) {
+    assign_cb(static_cast<uint8_t>(op), &CPU::bit);
+  }
+  for (uint16_t op = 0x80; op <= 0xBF; ++op) {
+    assign_cb(static_cast<uint8_t>(op), &CPU::res);
+  }
+  for (uint16_t op = 0xC0; op <= 0xFF; ++op) {
+    assign_cb(static_cast<uint8_t>(op), &CPU::set);
+  }
+
+  // Optional: coverage report
+  int implemented_cb = 0;
+  for (auto fn : cb_table) {
+    if (fn != &CPU::illegal) {
+      implemented_cb++;
+    }
+  }
+
+  std::cout << "Implemented opcodes(Prefixed): " << implemented_cb << "/256\n";
 }
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 4; }
@@ -339,8 +395,205 @@ auto CPU::service_interrupt() -> uint8_t {
 
 // TODO
 auto CPU::stop(uint8_t opcode) -> uint8_t {
-  halted = true;
+  reg.pc++;
   return 4;
+}
+
+auto CPU::rlc(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t carry = ((val >> 7) & 1);
+  uint8_t result = (val << 1) | carry;
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::rrc(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t carry = (val & 1);
+  uint8_t result = (val >> 1) | (carry << 7);
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::sla(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t carry = ((val >> 7) & 1);
+
+  uint8_t result = (val << 1);
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::rl(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t old_carry = reg.get_flag(gb::mem::FLAG_C) ? 1 : 0;
+  uint8_t carry = ((val >> 7) & 1);
+
+  uint8_t result = (val << 1) | old_carry;
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::sra(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t carry = val & 1;
+
+  uint8_t result = (val >> 1) | (val & 0x80);
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::swap(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t result = (val << 4) | (val >> 4);
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, false);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::srl(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t carry = val & 1;
+  uint8_t result = val >> 1;
+
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  return (src == 6) ? 16 : 8;
+}
+
+auto CPU::rr(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t val = read_reg(src);
+
+  uint8_t old_carry = reg.get_flag(gb::mem::FLAG_C) ? 1 : 0;
+  uint8_t carry = val & 1;
+
+  uint8_t result = (val >> 1) | (old_carry << 7);
+  write_reg(src, result);
+
+  reg.set_flag(gb::mem::FLAG_Z, result == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, false);
+  reg.set_flag(gb::mem::FLAG_C, carry != 0);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::bit(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t bit = (opcode >> 3) & 0x07;
+
+  reg.set_flag(gb::mem::FLAG_Z, (read_reg(src) & (1 << bit)) == 0);
+  reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, true);
+
+  if (src == 6) {
+    return 12;
+  }
+  return 8;
+}
+
+auto CPU::res(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t bit = (opcode >> 3) & 0x07;
+
+  uint8_t val = (read_reg(src) & ~(1 << bit));
+
+  write_reg(src, val);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
+}
+
+auto CPU::set(uint8_t opcode) -> uint8_t {
+  uint8_t src = opcode & 0x07;
+  uint8_t bit = (opcode >> 3) & 0x07;
+
+  uint8_t val = (read_reg(src) | (1 << bit));
+
+  write_reg(src, val);
+
+  if (src == 6) {
+    return 16;
+  }
+  return 8;
 }
 
 auto CPU::ld_sp_hl(uint8_t opcode) -> uint8_t {
@@ -1386,8 +1639,16 @@ auto CPU::illegal(uint8_t opcode) -> uint8_t {
 }
 
 void CPU::dump_opcode_table() const {
+  std::cout << "Operator Table:\n";
   for (int i = 0; i < 256; ++i) {
     if (op_table[i] == &CPU::illegal) {
+      std::cout << "Missing opcode: 0x" << std::hex << std::uppercase
+                << std::setw(2) << std::setfill('0') << i << "\n";
+    }
+  }
+  std::cout << "Prefix Table:\n";
+  for (int i = 0; i < 256; ++i) {
+    if (cb_table[i] == &CPU::illegal) {
       std::cout << "Missing opcode: 0x" << std::hex << std::uppercase
                 << std::setw(2) << std::setfill('0') << i << "\n";
     }
