@@ -51,6 +51,17 @@ private:
   auto ld_i16_sp(uint8_t) -> uint8_t;
   auto ld_r16_i16(uint8_t) -> uint8_t;
 
+  auto ldh_i8_a(uint8_t) -> uint8_t;
+  auto ldh_a_i8(uint8_t) -> uint8_t;
+  auto ldh_c_a(uint8_t) -> uint8_t;
+  auto ldh_a_c(uint8_t) -> uint8_t;
+
+  auto ld_i16_a(uint8_t) -> uint8_t;
+  auto ld_a_i16(uint8_t) -> uint8_t;
+
+  auto ld_hl_sp_i8(uint8_t) -> uint8_t;
+  auto ld_sp_hl(uint8_t) -> uint8_t;
+
   auto rlca(uint8_t) -> uint8_t;
   auto rla(uint8_t) -> uint8_t;
   auto rrca(uint8_t) -> uint8_t;
@@ -70,6 +81,8 @@ private:
 
   auto add_a_r8(uint8_t) -> uint8_t;
   auto adc_a_r8(uint8_t) -> uint8_t;
+
+  auto add_sp_i8(uint8_t) -> uint8_t;
 
   auto sub_a_r8(uint8_t) -> uint8_t;
   auto sbc_a_r8(uint8_t) -> uint8_t;
@@ -103,6 +116,9 @@ private:
   auto call_cond(uint8_t) -> uint8_t;
   auto rst(uint8_t) -> uint8_t;
 
+  auto push_r16(uint8_t) -> uint8_t;
+  auto pop_r16(uint8_t) -> uint8_t;
+
   void write_reg(uint8_t dst, uint8_t val);
   auto read_reg(uint8_t src) -> uint8_t;
 
@@ -110,6 +126,7 @@ private:
   auto read_r16(uint8_t src) -> uint16_t;
 
   void push_stack_u16(uint16_t);
+  auto pop() -> uint16_t;
 
   std::array<Instr, 256> cb_table{}, op_table{};
 };

@@ -105,6 +105,7 @@ auto CPU::step() -> uint8_t {
 
 void CPU::init_tables() {
   op_table.fill(&CPU::illegal);
+  cb_table.fill(&CPU::illegal);
 
   auto assign = [&](uint8_t opcode, auto fn) -> auto {
     if (op_table[opcode] != &CPU::illegal) {
@@ -249,6 +250,29 @@ void CPU::init_tables() {
     assign(op, &CPU::rst);
   }
 
+  // ===== PUSH =====
+  for (uint8_t op : {0xC5, 0xD5, 0xE5, 0xF5}) {
+    assign(op, &CPU::push_r16);
+  }
+
+  // ===== POP =====
+  for (uint8_t op : {0xC1, 0xD1, 0xE1, 0xF1}) {
+    assign(op, &CPU::pop_r16);
+  }
+
+  // ===== HIGH MEM =====
+  assign(0xE0, &CPU::ldh_i8_a);
+  assign(0xF0, &CPU::ldh_a_i8);
+  assign(0xE2, &CPU::ldh_c_a);
+  assign(0xF2, &CPU::ldh_a_c);
+
+  assign(0xEA, &CPU::ld_i16_a);
+  assign(0xFA, &CPU::ld_a_i16);
+
+  assign(0xE8, &CPU::add_sp_i8);
+  assign(0xF8, &CPU::ld_hl_sp_i8);
+  assign(0xF9, &CPU::ld_sp_hl);
+
   // Optional: coverage report
   int implemented = 0;
   for (auto fn : op_table) {
@@ -317,6 +341,90 @@ auto CPU::service_interrupt() -> uint8_t {
 auto CPU::stop(uint8_t opcode) -> uint8_t {
   halted = true;
   return 4;
+}
+
+auto CPU::ld_sp_hl(uint8_t opcode) -> uint8_t {
+  reg.sp = reg.hl();
+
+  return 8;
+}
+
+auto CPU::ld_hl_sp_i8(uint8_t opcode) -> uint8_t {
+  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+
+  uint16_t sp = reg.sp;
+  uint16_t result = sp + offset;
+
+  reg.set_flag(gb::mem::FLAG_Z, false);
+  reg.set_flag(gb::mem::FLAG_N, false);
+
+  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (offset & 0xF)) > 0xF);
+
+  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + (offset & 0xFF)) > 0xFF);
+
+  reg.set_hl(result);
+
+  return 12;
+}
+
+auto CPU::add_sp_i8(uint8_t opcode) -> uint8_t {
+  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+
+  uint16_t sp = reg.sp;
+  uint16_t result = sp + offset;
+
+  reg.set_flag(gb::mem::FLAG_Z, false);
+  reg.set_flag(gb::mem::FLAG_N, false);
+
+  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (offset & 0xF)) > 0xF);
+
+  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + (offset & 0xFF)) > 0xFF);
+
+  reg.sp = result;
+
+  return 16;
+}
+
+auto CPU::ld_i16_a(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+
+  uint16_t addr = (high << 8) | low;
+
+  bus.write(addr, reg.a);
+  return 16;
+}
+
+auto CPU::ld_a_i16(uint8_t opcode) -> uint8_t {
+  uint8_t low = bus.read(reg.pc++);
+  uint8_t high = bus.read(reg.pc++);
+
+  uint16_t addr = (high << 8) | low;
+
+  reg.a = bus.read(addr);
+  return 16;
+}
+
+auto CPU::ldh_i8_a(uint8_t opcode) -> uint8_t {
+  uint8_t offset = bus.read(reg.pc++);
+  bus.write(0xFF00 + offset, reg.a);
+  return 12;
+}
+
+auto CPU::ldh_a_i8(uint8_t opcode) -> uint8_t {
+  uint8_t offset = bus.read(reg.pc++);
+  reg.a = bus.read(0xFF00 + offset);
+  return 12;
+}
+
+auto CPU::ldh_c_a(uint8_t opcode) -> uint8_t {
+  bus.write(0xFF00 + reg.c, reg.a);
+  return 8;
+}
+
+auto CPU::ldh_a_c(uint8_t opcode) -> uint8_t {
+  reg.a = bus.read(0xFF00 + reg.c);
+  return 8;
 }
 
 auto CPU::ei(uint8_t opcode) -> uint8_t {
@@ -473,6 +581,55 @@ auto CPU::call(uint8_t opcode) -> uint8_t {
   // Jump to target
   reg.pc = addr;
   return 24;
+}
+
+auto CPU::push_r16(uint8_t opcode) -> uint8_t {
+  switch ((opcode >> 4) & 0x3) {
+  case 0:
+    push_stack_u16(reg.bc());
+    break;
+  case 1:
+    push_stack_u16(reg.de());
+    break;
+  case 2:
+    push_stack_u16(reg.hl());
+    break;
+  case 3:
+    push_stack_u16(reg.af());
+    break;
+  default:
+    __builtin_unreachable();
+  }
+  return 16;
+}
+
+auto CPU::pop_r16(uint8_t opcode) -> uint8_t {
+  uint16_t value = pop();
+
+  switch ((opcode >> 4) & 0x3) {
+  case 0:
+    reg.set_bc(value);
+    break;
+  case 1:
+    reg.set_de(value);
+    break;
+  case 2:
+    reg.set_hl(value);
+    break;
+  case 3:
+    reg.set_af(value & 0xFFF0);
+    break; // lower 4 bits forced 0
+  default:
+    __builtin_unreachable();
+  }
+
+  return 12;
+}
+
+auto CPU::pop() -> uint16_t {
+  uint8_t lo = bus.read(reg.sp++);
+  uint8_t hi = bus.read(reg.sp++);
+  return (hi << 8) | lo;
 }
 
 void CPU::push_stack_u16(uint16_t val) {
