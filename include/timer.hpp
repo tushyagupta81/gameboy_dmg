@@ -11,6 +11,8 @@ public:
 
   void connect_interrupt_flag(uint8_t *if_reg);
 
+  void write_div_raw(uint8_t);
+
 private:
   uint16_t counter = 0;
 

@@ -137,6 +137,50 @@ void Bus::load_rom(const std::vector<uint8_t> &rom_data) {
 }
 
 Bus::Bus() {
+  using namespace gb::mem;
+  // Timer
+  mem.io[0xFF05 - IO_START] = 0x00; // TIMA
+  mem.io[0xFF06 - IO_START] = 0x00; // TMA
+  mem.io[0xFF07 - IO_START] = 0x00; // TAC
+  timer.write_div_raw(0xAB);          // DIV
+
+  // Sound
+  mem.io[0xFF10 - IO_START] = 0x80;
+  mem.io[0xFF11 - IO_START] = 0xBF;
+  mem.io[0xFF12 - IO_START] = 0xF3;
+  mem.io[0xFF14 - IO_START] = 0xBF;
+  mem.io[0xFF16 - IO_START] = 0x3F;
+  mem.io[0xFF17 - IO_START] = 0x00;
+  mem.io[0xFF19 - IO_START] = 0xBF;
+  mem.io[0xFF1A - IO_START] = 0x7F;
+  mem.io[0xFF1B - IO_START] = 0xFF;
+  mem.io[0xFF1C - IO_START] = 0x9F;
+  mem.io[0xFF1E - IO_START] = 0xBF;
+  mem.io[0xFF20 - IO_START] = 0xFF;
+  mem.io[0xFF21 - IO_START] = 0x00;
+  mem.io[0xFF22 - IO_START] = 0x00;
+  mem.io[0xFF23 - IO_START] = 0xBF;
+  mem.io[0xFF24 - IO_START] = 0x77;
+  mem.io[0xFF25 - IO_START] = 0xF3;
+  mem.io[0xFF26 - IO_START] = 0xF1;
+
+  // PPU
+  mem.io[0xFF40 - IO_START] = 0x91;
+  mem.io[0xFF41 - IO_START] = 0x81; // FIXED
+  mem.io[0xFF42 - IO_START] = 0x00;
+  mem.io[0xFF43 - IO_START] = 0x00;
+  mem.io[0xFF44 - IO_START] = 0x00;
+  mem.io[0xFF45 - IO_START] = 0x00;
+  mem.io[0xFF47 - IO_START] = 0xFC;
+  mem.io[0xFF48 - IO_START] = 0xFF;
+  mem.io[0xFF49 - IO_START] = 0xFF;
+  mem.io[0xFF4A - IO_START] = 0x00;
+  mem.io[0xFF4B - IO_START] = 0x00;
+
+  // Interrupts
+  mem.io[0xFF0F - IO_START] = 0xE1;
+  mem.ie = 0x00;
+
   timer.connect_interrupt_flag(&mem.io[0xFF0F - gb::mem::IO_START]);
 }
 

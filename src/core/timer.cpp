@@ -1,4 +1,5 @@
 #include "timer.hpp"
+#include <cstdint>
 
 auto Timer::read(uint16_t addr) const -> uint8_t {
   switch (addr) {
@@ -86,4 +87,8 @@ void Timer::increment_tima() {
   } else {
     tima++;
   }
+}
+
+void Timer::write_div_raw(uint8_t val) {
+  counter = static_cast<uint16_t>(val) << 8;
 }

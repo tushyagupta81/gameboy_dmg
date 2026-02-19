@@ -13,25 +13,22 @@
 CPU::CPU(const std::string &rom_path)
     : halted(false), halt_bug(false), ime(false), ime_enable_pending(false),
       trace("trace.log") {
-  reg.a = reg.f = 0;
-  reg.b = reg.c = 0;
-  reg.d = reg.e = 0;
-  reg.h = reg.l = 0;
+  reg.set_af(0x01B0);
+  reg.set_bc(0x0013);
+  reg.set_de(0x00D8);
+  reg.set_hl(0x014D);
 
   reg.sp = 0xFFFE; // typical GB start SP
   reg.pc = 0x0100; // typical GB entry point
 
-  std::cout << "Initialized registers\n";
+  // std::cout << "Initialized registers\n";
 
-  // Clear flags
-  reg.clear_flags();
-
-  std::cout << "Cleared Falgs\n";
+  // std::cout << "Cleared Falgs\n";
 
   // Initialize opcode tables
   init_tables();
 
-  std::cout << "Initialized Tables\n";
+  // std::cout << "Initialized Tables\n";
 
   std::ifstream file(rom_path, std::ios::binary);
   if (!file) {
@@ -43,9 +40,9 @@ CPU::CPU(const std::string &rom_path)
 
   bus.load_rom(rom);
 
-  std::cout << "Loaded ROM\n";
+  // std::cout << "Loaded ROM\n";
 
-  std::cout << "Initialized CPU\n";
+  // std::cout << "Initialized CPU\n";
 }
 
 auto CPU::step() -> uint8_t {
@@ -293,7 +290,7 @@ void CPU::init_tables() {
     }
   }
 
-  std::cout << "Implemented opcodes: " << implemented_op << "/256\n";
+  // std::cout << "Implemented opcodes: " << implemented_op << "/256\n";
 
   // === Prefix Table ===
 
@@ -340,7 +337,7 @@ void CPU::init_tables() {
     }
   }
 
-  std::cout << "Implemented opcodes(Prefixed): " << implemented_cb << "/256\n";
+  // std::cout << "Implemented opcodes(Prefixed): " << implemented_cb << "/256\n";
 }
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 0; }
@@ -1669,14 +1666,14 @@ auto CPU::illegal(uint8_t opcode) -> uint8_t {
 }
 
 void CPU::dump_opcode_table() const {
-  std::cout << "Operator Table:\n";
+  // std::cout << "Operator Table:\n";
   for (int i = 0; i < 256; ++i) {
     if (op_table[i] == &CPU::illegal) {
       std::cout << "Missing opcode: 0x" << std::hex << std::uppercase
                 << std::setw(2) << std::setfill('0') << i << "\n";
     }
   }
-  std::cout << "Prefix Table:\n";
+  // std::cout << "Prefix Table:\n";
   for (int i = 0; i < 256; ++i) {
     if (cb_table[i] == &CPU::illegal) {
       std::cout << "Missing opcode: 0x" << std::hex << std::uppercase
