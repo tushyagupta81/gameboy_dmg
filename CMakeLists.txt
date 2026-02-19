@@ -13,10 +13,12 @@ target_sources(Gameboy
    src/main.cpp
    src/core/cpu.cpp
    src/core/bus.cpp
+   src/core/timer.cpp
 )
 
 target_compile_definitions(Gameboy PRIVATE TRACE)
 
 target_include_directories(Gameboy
    PRIVATE
-   include)
+   include
+)

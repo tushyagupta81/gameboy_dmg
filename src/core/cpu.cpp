@@ -1654,3 +1654,5 @@ void CPU::dump_opcode_table() const {
     }
   }
 }
+
+void CPU::timer_tick(int cycles) { bus.timer_tick(cycles); }

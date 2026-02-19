@@ -15,7 +15,8 @@ auto main(int argc, char **argv) -> int {
 
   // Optionally: run a simple CPU loop here
   while (true) {
-    cpu.step();
+    int cycles = cpu.step();
+    cpu.timer_tick(cycles);
   }
 
   return 0;

@@ -4,8 +4,8 @@
 #include "memory.hpp"
 #include <array>
 #include <cstdint>
-#include <string>
 #include <fstream>
+#include <string>
 
 class CPU {
 public:
@@ -13,7 +13,8 @@ public:
   CPU(const std::string &rom_path);
   auto step() -> uint8_t;
 
-void dump_opcode_table() const;
+  void dump_opcode_table() const;
+  void timer_tick(int cycles);
 
 private:
   std::ofstream trace;

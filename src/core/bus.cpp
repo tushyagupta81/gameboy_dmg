@@ -38,6 +38,9 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
   }
 
   if (addr >= IO_START && addr <= IO_END) {
+    if (addr >= 0xFF04 && addr <= 0xFF07) {
+      return timer.read(addr);
+    }
     return mem.io[addr - IO_START];
     // return OPEN_BUS; // not implemented yet
   }
@@ -106,6 +109,10 @@ void Bus::write(uint16_t addr, uint8_t value) {
       char c = static_cast<char>(mem.io[0xFF01 - IO_START]);
       std::cout << c << std::flush;
     }
+    if (addr >= 0xFF04 && addr <= 0xFF07) {
+      timer.write(addr, value);
+      return;
+    }
 
     // TODO: delegate to IO subsystem
     return;
@@ -128,3 +135,9 @@ void Bus::load_rom(const std::vector<uint8_t> &rom_data) {
   size_t size_to_copy = std::min(rom_data.size(), mem.rom.size());
   std::copy_n(rom_data.begin(), size_to_copy, mem.rom.begin());
 }
+
+Bus::Bus() {
+  timer.connect_interrupt_flag(&mem.io[0xFF0F - gb::mem::IO_START]);
+}
+
+void Bus::timer_tick(int cycles) { timer.tick(cycles); }
