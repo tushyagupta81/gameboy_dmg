@@ -12,7 +12,7 @@
 
 CPU::CPU(const std::string &rom_path)
     : halted(false), halt_bug(false), ime(false), ime_enable_pending(false),
-      trace("trace.log"), bus() {
+      trace("trace.log") {
   reg.a = reg.f = 0;
   reg.b = reg.c = 0;
   reg.d = reg.e = 0;
@@ -66,6 +66,8 @@ auto CPU::step() -> uint8_t {
 
   uint16_t pc_before = reg.pc;
   uint8_t opcode = bus.read(reg.pc);
+  mcycle();
+
 #ifdef TRACE
   trace << std::hex << std::uppercase;
   trace << "A:" << std::setw(2) << (int)reg.a << " "
@@ -90,6 +92,7 @@ auto CPU::step() -> uint8_t {
   uint8_t cycles = 0;
   if (opcode == 0xCB) {
     opcode = bus.read(reg.pc++);
+    mcycle();
     cycles = (this->*cb_table[opcode])(opcode);
   } else {
     cycles = (this->*op_table[opcode])(opcode);
@@ -340,7 +343,7 @@ void CPU::init_tables() {
   std::cout << "Implemented opcodes(Prefixed): " << implemented_cb << "/256\n";
 }
 
-auto CPU::nop(uint8_t opcode) -> uint8_t { return 4; }
+auto CPU::nop(uint8_t opcode) -> uint8_t { return 0; }
 
 auto CPU::service_interrupt() -> uint8_t {
   if (!ime) {
@@ -361,9 +364,12 @@ auto CPU::service_interrupt() -> uint8_t {
 
   for (int i = 0; i < 5; i++) {
     if ((pending & (1 << i)) != 0) {
+      mcycle();
       interrupt_flag &= ~(1 << i);
       bus.write(0xFF0F, interrupt_flag);
+      mcycle();
 
+      // 2 mcycles inside
       push_stack_u16(reg.pc);
 
       switch (i) {
@@ -385,8 +391,9 @@ auto CPU::service_interrupt() -> uint8_t {
       default:
         __builtin_unreachable();
       }
+      mcycle();
 
-      return 20;
+      return 0;
     }
   }
 
@@ -396,7 +403,7 @@ auto CPU::service_interrupt() -> uint8_t {
 // TODO
 auto CPU::stop(uint8_t opcode) -> uint8_t {
   reg.pc++;
-  return 4;
+  return 0;
 }
 
 auto CPU::rlc(uint8_t opcode) -> uint8_t {
@@ -412,10 +419,7 @@ auto CPU::rlc(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::rrc(uint8_t opcode) -> uint8_t {
@@ -431,10 +435,7 @@ auto CPU::rrc(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::sla(uint8_t opcode) -> uint8_t {
@@ -451,10 +452,7 @@ auto CPU::sla(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::rl(uint8_t opcode) -> uint8_t {
@@ -472,10 +470,7 @@ auto CPU::rl(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::sra(uint8_t opcode) -> uint8_t {
@@ -492,10 +487,7 @@ auto CPU::sra(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::swap(uint8_t opcode) -> uint8_t {
@@ -510,10 +502,7 @@ auto CPU::swap(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, false);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::srl(uint8_t opcode) -> uint8_t {
@@ -530,7 +519,7 @@ auto CPU::srl(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  return (src == 6) ? 16 : 8;
+  return 0;
 }
 
 auto CPU::rr(uint8_t opcode) -> uint8_t {
@@ -548,10 +537,7 @@ auto CPU::rr(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, carry != 0);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::bit(uint8_t opcode) -> uint8_t {
@@ -562,10 +548,7 @@ auto CPU::bit(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_N, false);
   reg.set_flag(gb::mem::FLAG_H, true);
 
-  if (src == 6) {
-    return 12;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::res(uint8_t opcode) -> uint8_t {
@@ -576,10 +559,7 @@ auto CPU::res(uint8_t opcode) -> uint8_t {
 
   write_reg(src, val);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::set(uint8_t opcode) -> uint8_t {
@@ -590,20 +570,21 @@ auto CPU::set(uint8_t opcode) -> uint8_t {
 
   write_reg(src, val);
 
-  if (src == 6) {
-    return 16;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::ld_sp_hl(uint8_t opcode) -> uint8_t {
   reg.sp = reg.hl();
+  mcycle();
 
-  return 8;
+  return 0;
 }
 
 auto CPU::ld_hl_sp_i8(uint8_t opcode) -> uint8_t {
-  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  uint8_t imm = bus.read(reg.pc++);
+  mcycle();
+
+  auto offset = static_cast<int8_t>(imm);
 
   uint16_t sp = reg.sp;
   uint16_t result = sp + offset;
@@ -611,83 +592,99 @@ auto CPU::ld_hl_sp_i8(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_Z, false);
   reg.set_flag(gb::mem::FLAG_N, false);
 
-  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (offset & 0xF)) > 0xF);
-
-  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + (offset & 0xFF)) > 0xFF);
+  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (imm & 0xF)) > 0xF);
+  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + imm) > 0xFF);
 
   reg.set_hl(result);
+  mcycle();
 
-  return 12;
+  return 0;
 }
 
 auto CPU::add_sp_i8(uint8_t opcode) -> uint8_t {
-  auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  uint8_t imm = bus.read(reg.pc++);
+  mcycle();
+
+  auto offset = static_cast<int8_t>(imm);
 
   uint16_t sp = reg.sp;
   uint16_t result = sp + offset;
 
   reg.set_flag(gb::mem::FLAG_Z, false);
   reg.set_flag(gb::mem::FLAG_N, false);
+  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (imm & 0xF)) > 0xF);
+  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + imm) > 0xFF);
 
-  reg.set_flag(gb::mem::FLAG_H, ((sp & 0xF) + (offset & 0xF)) > 0xF);
-
-  reg.set_flag(gb::mem::FLAG_C, ((sp & 0xFF) + (offset & 0xFF)) > 0xFF);
-
+  // Extra internal work
+  mcycle();
   reg.sp = result;
+  mcycle();
 
-  return 16;
+  return 0;
 }
 
 auto CPU::ld_i16_a(uint8_t opcode) -> uint8_t {
+  mcycle();
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
 
   uint16_t addr = (high << 8) | low;
 
+  mcycle();
   bus.write(addr, reg.a);
-  return 16;
+  return 0;
 }
 
 auto CPU::ld_a_i16(uint8_t opcode) -> uint8_t {
+  mcycle();
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
 
   uint16_t addr = (high << 8) | low;
 
+  mcycle();
   reg.a = bus.read(addr);
-  return 16;
+  return 0;
 }
 
 auto CPU::ldh_i8_a(uint8_t opcode) -> uint8_t {
+  mcycle();
   uint8_t offset = bus.read(reg.pc++);
+  mcycle();
   bus.write(0xFF00 + offset, reg.a);
-  return 12;
+  return 0;
 }
 
 auto CPU::ldh_a_i8(uint8_t opcode) -> uint8_t {
+  mcycle();
   uint8_t offset = bus.read(reg.pc++);
+  mcycle();
   reg.a = bus.read(0xFF00 + offset);
-  return 12;
+  return 0;
 }
 
 auto CPU::ldh_c_a(uint8_t opcode) -> uint8_t {
+  mcycle();
   bus.write(0xFF00 + reg.c, reg.a);
-  return 8;
+  return 0;
 }
 
 auto CPU::ldh_a_c(uint8_t opcode) -> uint8_t {
+  mcycle();
   reg.a = bus.read(0xFF00 + reg.c);
-  return 8;
+  return 0;
 }
 
 auto CPU::ei(uint8_t opcode) -> uint8_t {
   ime_enable_pending = true; // IME will become 1 after next instruction
-  return 4;
+  return 0;
 }
 
 auto CPU::di(uint8_t opcode) -> uint8_t {
   ime = false; // immediately disable interrupts
-  return 4;
+  return 0;
 }
 
 auto CPU::halt(uint8_t opcode) -> uint8_t {
@@ -697,21 +694,26 @@ auto CPU::halt(uint8_t opcode) -> uint8_t {
     halted = true;
   }
 
-  return 4;
+  return 0;
 }
 
 auto CPU::jp_i16(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
+  mcycle();
 
   uint16_t addr = (high << 8) | low;
   reg.pc = addr;
-  return 16;
+  mcycle();
+  return 0;
 }
 
 auto CPU::jp_cond_i16(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
+  mcycle();
 
   uint16_t addr = (high << 8) | low;
 
@@ -735,24 +737,28 @@ auto CPU::jp_cond_i16(uint8_t opcode) -> uint8_t {
 
   if (do_jump) {
     reg.pc = addr;
-    return 16; // taken
+    mcycle();
+    return 0; // taken
   }
-  return 12; // not taken
+  return 0; // not taken
 }
 
 auto CPU::jr(uint8_t opcode) -> uint8_t {
   auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  mcycle();
   reg.pc += offset;
-  return 12; // 12 cycles for JR n
+  mcycle();
+  return 0; // 12 cycles for JR n
 }
 
 auto CPU::jp_hl(uint8_t opcode) -> uint8_t {
   reg.pc = reg.hl();
-  return 4;
+  return 0;
 }
 
 auto CPU::jr_cond(uint8_t opcode) -> uint8_t {
   auto offset = static_cast<int8_t>(bus.read(reg.pc++));
+  mcycle();
   bool do_jump = false;
 
   switch ((opcode >> 3) & 0x03) {
@@ -774,24 +780,31 @@ auto CPU::jr_cond(uint8_t opcode) -> uint8_t {
 
   if (do_jump) {
     reg.pc += offset;
-    return 12; // taken
+    mcycle();
+    return 0; // taken
   }
-  return 8; // not taken
+  return 0; // not taken
 }
 
 auto CPU::reti(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.sp++);
+  mcycle();
   uint8_t high = bus.read(reg.sp++);
+  mcycle();
   reg.pc = (high << 8) | low;
+  mcycle();
   ime = true; // enable interrupts
-  return 16;
+  return 0;
 }
 
 auto CPU::ret(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.sp++);
+  mcycle();
   uint8_t high = bus.read(reg.sp++);
+  mcycle();
   reg.pc = (high << 8) | low;
-  return 16;
+  mcycle();
+  return 0;
 }
 
 auto CPU::ret_cond(uint8_t opcode) -> uint8_t {
@@ -812,31 +825,38 @@ auto CPU::ret_cond(uint8_t opcode) -> uint8_t {
   default:
     __builtin_unreachable();
   }
-
+  mcycle();
   if (do_ret) {
     uint8_t low = bus.read(reg.sp++);
+    mcycle();
     uint8_t high = bus.read(reg.sp++);
+    mcycle();
     reg.pc = (high << 8) | low;
-    return 20; // taken
+    mcycle();
+    return 0; // taken
   }
-  return 8; // not taken
+  return 0; // not taken
 }
 
 // Unconditional 16-bit call
 auto CPU::call(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
+  mcycle();
   uint16_t addr = (high << 8) | low;
 
   // Push current PC onto stack (little-endian)
+  mcycle();
   push_stack_u16(reg.pc);
 
   // Jump to target
   reg.pc = addr;
-  return 24;
+  return 0;
 }
 
 auto CPU::push_r16(uint8_t opcode) -> uint8_t {
+  mcycle();
   switch ((opcode >> 4) & 0x3) {
   case 0:
     push_stack_u16(reg.bc());
@@ -853,7 +873,7 @@ auto CPU::push_r16(uint8_t opcode) -> uint8_t {
   default:
     __builtin_unreachable();
   }
-  return 16;
+  return 0;
 }
 
 auto CPU::pop_r16(uint8_t opcode) -> uint8_t {
@@ -876,25 +896,33 @@ auto CPU::pop_r16(uint8_t opcode) -> uint8_t {
     __builtin_unreachable();
   }
 
-  return 12;
+  return 0;
 }
 
 auto CPU::pop() -> uint16_t {
   uint8_t lo = bus.read(reg.sp++);
+  mcycle();
   uint8_t hi = bus.read(reg.sp++);
+  mcycle();
   return (hi << 8) | lo;
 }
 
 void CPU::push_stack_u16(uint16_t val) {
-  reg.sp -= 2;
-  bus.write(reg.sp, val & 0xFF);     // low byte
-  bus.write(reg.sp + 1, (val >> 8)); // high byte
+  reg.sp--;
+  bus.write(reg.sp, (val >> 8)); // high byte
+  mcycle();
+
+  reg.sp--;
+  bus.write(reg.sp, val & 0xFF); // low byte
+  mcycle();
 }
 
 // Conditional 16-bit call
 auto CPU::call_cond(uint8_t opcode) -> uint8_t {
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
+  mcycle();
   uint16_t addr = (high << 8) | low;
 
   bool do_call = false;
@@ -916,13 +944,14 @@ auto CPU::call_cond(uint8_t opcode) -> uint8_t {
   }
 
   if (do_call) {
+    mcycle();
     // Push current PC and jump
     push_stack_u16(reg.pc);
     reg.pc = addr;
-    return 24; // taken
+    return 0; // taken
   }
 
-  return 12; // not taken
+  return 0; // not taken
 }
 
 // Reset to fixed vector (rst)
@@ -930,12 +959,13 @@ auto CPU::rst(uint8_t opcode) -> uint8_t {
   // RST target address = opcode & 0x38
   uint16_t addr = opcode & 0x38;
 
+  mcycle();
   // Push current PC
   push_stack_u16(reg.pc);
 
   // Jump to fixed address
   reg.pc = addr;
-  return 16;
+  return 0;
 }
 
 auto CPU::rra(uint8_t opcode) -> uint8_t {
@@ -948,7 +978,7 @@ auto CPU::rra(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_N, false);
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, static_cast<bool>(old & 0x01));
-  return 4;
+  return 0;
 }
 
 auto CPU::rrca(uint8_t opcode) -> uint8_t {
@@ -959,7 +989,7 @@ auto CPU::rrca(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_N, false);
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, static_cast<bool>(old & 0x01));
-  return 4;
+  return 0;
 }
 
 auto CPU::rla(uint8_t opcode) -> uint8_t {
@@ -972,7 +1002,7 @@ auto CPU::rla(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_N, false);
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, static_cast<bool>(old & 0x80));
-  return 4;
+  return 0;
 }
 
 auto CPU::rlca(uint8_t opcode) -> uint8_t {
@@ -982,7 +1012,7 @@ auto CPU::rlca(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_N, false);
   reg.set_flag(gb::mem::FLAG_H, false);
   reg.set_flag(gb::mem::FLAG_C, static_cast<bool>(old & 0x80));
-  return 4;
+  return 0;
 }
 
 // DAA – Decimal Adjust Accumulator
@@ -1017,7 +1047,7 @@ auto CPU::daa(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   // N unchanged, C already handled above
 
-  return 4;
+  return 0;
 }
 
 // CPL – Complement Accumulator
@@ -1028,7 +1058,7 @@ auto CPU::cpl(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, true);
   // Z and C unchanged
 
-  return 4;
+  return 0;
 }
 
 // SCF – Set Carry Flag
@@ -1038,7 +1068,7 @@ auto CPU::scf(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   // Z unchanged
 
-  return 4;
+  return 0;
 }
 
 // CCF – Complement Carry Flag
@@ -1049,7 +1079,7 @@ auto CPU::ccf(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, false);
   // Z unchanged
 
-  return 4;
+  return 0;
 }
 
 auto CPU::pending_interrupts() -> bool {
@@ -1060,6 +1090,7 @@ auto CPU::pending_interrupts() -> bool {
 
 auto CPU::or_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
 
   uint8_t val = reg.a | i8;
 
@@ -1070,11 +1101,13 @@ auto CPU::or_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::cp_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
+
   uint8_t a = reg.a;
 
   uint16_t result = a - i8;
@@ -1085,11 +1118,12 @@ auto CPU::cp_a_i8(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, (a & 0x0F) < (i8 & 0x0F));
   reg.set_flag(gb::mem::FLAG_C, a < i8);
 
-  return 8;
+  return 0;
 }
 
 auto CPU::xor_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
 
   uint8_t val = reg.a ^ i8;
 
@@ -1100,11 +1134,12 @@ auto CPU::xor_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::and_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
 
   uint8_t val = reg.a & i8;
 
@@ -1115,11 +1150,13 @@ auto CPU::and_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::sub_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
+
   uint8_t a = reg.a;
 
   uint16_t result = a - i8;
@@ -1132,11 +1169,13 @@ auto CPU::sub_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::sbc_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
+
   uint8_t a = reg.a;
   auto carry = static_cast<uint8_t>(reg.get_flag(gb::mem::FLAG_C));
 
@@ -1150,11 +1189,13 @@ auto CPU::sbc_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::adc_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
+
   uint8_t a = reg.a;
   auto carry = static_cast<uint8_t>(reg.get_flag(gb::mem::FLAG_C));
 
@@ -1168,11 +1209,13 @@ auto CPU::adc_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::add_a_i8(uint8_t opcode) -> uint8_t {
   uint8_t i8 = bus.read(reg.pc++);
+  mcycle();
+
   uint8_t a = reg.a;
 
   uint16_t result = a + i8;
@@ -1185,7 +1228,7 @@ auto CPU::add_a_i8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  return 8;
+  return 0;
 }
 
 auto CPU::or_a_r8(uint8_t opcode) -> uint8_t {
@@ -1202,10 +1245,7 @@ auto CPU::or_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  if (reg_no == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::cp_a_r8(uint8_t opcode) -> uint8_t {
@@ -1222,10 +1262,7 @@ auto CPU::cp_a_r8(uint8_t opcode) -> uint8_t {
   reg.set_flag(gb::mem::FLAG_H, (a & 0x0F) < (val & 0x0F));
   reg.set_flag(gb::mem::FLAG_C, a < val);
 
-  if (reg_no == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::xor_a_r8(uint8_t opcode) -> uint8_t {
@@ -1242,10 +1279,7 @@ auto CPU::xor_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  if (reg_no == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::and_a_r8(uint8_t opcode) -> uint8_t {
@@ -1262,10 +1296,7 @@ auto CPU::and_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = val;
 
-  if (reg_no == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::sub_a_r8(uint8_t opcode) -> uint8_t {
@@ -1284,10 +1315,7 @@ auto CPU::sub_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  if (src == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::sbc_a_r8(uint8_t opcode) -> uint8_t {
@@ -1307,10 +1335,7 @@ auto CPU::sbc_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  if (src == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::adc_a_r8(uint8_t opcode) -> uint8_t {
@@ -1330,10 +1355,7 @@ auto CPU::adc_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  if (src == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::add_a_r8(uint8_t opcode) -> uint8_t {
@@ -1352,36 +1374,39 @@ auto CPU::add_a_r8(uint8_t opcode) -> uint8_t {
 
   reg.a = final;
 
-  if (src == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::ld_r16_i16(uint8_t opcode) -> uint8_t {
   uint8_t dst_reg = (opcode >> 4) & 0x3;
 
   uint8_t low = bus.read(reg.pc++);
+  mcycle();
   uint8_t high = bus.read(reg.pc++);
+  mcycle();
 
   uint16_t val = (high << 8) | low;
 
   write_r16(dst_reg, val);
 
-  return 12;
+  return 0;
 }
 
 auto CPU::ld_i16_sp(uint8_t opcode) -> uint8_t {
   uint8_t low_byte = bus.read(reg.pc++);
+  mcycle();
   uint8_t high_byte = bus.read(reg.pc++);
+  mcycle();
 
   uint16_t addr = (high_byte << 8) | low_byte;
 
   // write SP little-endian
-  bus.write(addr, reg.sp & 0xFF);            // low byte
+  bus.write(addr, reg.sp & 0xFF); // low byte
+  mcycle();
   bus.write(addr + 1, (reg.sp >> 8) & 0xFF); // high byte
+  mcycle();
 
-  return 20;
+  return 0;
 }
 
 auto CPU::ld_r8_r8(uint8_t opcode) -> uint8_t {
@@ -1391,23 +1416,18 @@ auto CPU::ld_r8_r8(uint8_t opcode) -> uint8_t {
 
   write_reg(dst, read_reg(src));
 
-  if (src == 6 || dst == 6) {
-    return 8;
-  }
-  return 4;
+  return 0;
 }
 
 auto CPU::ld_r8_i8(uint8_t opcode) -> uint8_t {
 
   uint8_t dst = (opcode >> 3) & 0x07;
   uint8_t val = bus.read(reg.pc++);
+  mcycle();
 
   write_reg(dst, val);
 
-  if (dst == 6) {
-    return 12;
-  }
-  return 8;
+  return 0;
 }
 
 auto CPU::ld_mem_a(uint8_t opcode) -> uint8_t {
@@ -1434,9 +1454,10 @@ auto CPU::ld_mem_a(uint8_t opcode) -> uint8_t {
     __builtin_unreachable();
   }
 
+  mcycle();
   bus.write(dst_addr, reg.a);
 
-  return 8;
+  return 0;
 }
 
 auto CPU::ld_a_mem(uint8_t opcode) -> uint8_t {
@@ -1463,9 +1484,10 @@ auto CPU::ld_a_mem(uint8_t opcode) -> uint8_t {
     __builtin_unreachable();
   }
 
+  mcycle();
   reg.a = bus.read(src_addr);
 
-  return 8;
+  return 0;
 }
 
 auto CPU::add_hl_r16(uint8_t opcode) -> uint8_t {
@@ -1484,7 +1506,9 @@ auto CPU::add_hl_r16(uint8_t opcode) -> uint8_t {
 
   reg.set_hl(static_cast<uint16_t>(result));
 
-  return 8;
+  mcycle();
+
+  return 0;
 }
 
 auto CPU::inc_r16(uint8_t opcode) -> uint8_t {
@@ -1495,7 +1519,9 @@ auto CPU::inc_r16(uint8_t opcode) -> uint8_t {
 
   write_r16(dst, result);
 
-  return 8;
+  mcycle();
+
+  return 0;
 }
 
 auto CPU::dec_r16(uint8_t opcode) -> uint8_t {
@@ -1506,7 +1532,9 @@ auto CPU::dec_r16(uint8_t opcode) -> uint8_t {
 
   write_r16(dst, result);
 
-  return 8;
+  mcycle();
+
+  return 0;
 }
 
 auto CPU::inc_r8(uint8_t opcode) -> uint8_t {
@@ -1523,7 +1551,7 @@ auto CPU::inc_r8(uint8_t opcode) -> uint8_t {
 
   write_reg(dst, result);
 
-  return (dst == 6) ? 12 : 4;
+  return 0;
 }
 
 auto CPU::dec_r8(uint8_t opcode) -> uint8_t {
@@ -1540,7 +1568,7 @@ auto CPU::dec_r8(uint8_t opcode) -> uint8_t {
 
   write_reg(dst, result);
 
-  return (dst == 6) ? 12 : 4;
+  return 0;
 }
 
 void CPU::write_reg(uint8_t dst, uint8_t val) {
@@ -1564,6 +1592,7 @@ void CPU::write_reg(uint8_t dst, uint8_t val) {
     reg.l = val;
     break;
   case 6:
+    mcycle();
     bus.write(reg.hl(), val);
     break; // memory write
   case 7:
@@ -1589,6 +1618,7 @@ auto CPU::read_reg(uint8_t src) -> uint8_t {
   case 5:
     return reg.l;
   case 6:
+    mcycle();
     return bus.read(reg.hl());
   case 7:
     return reg.a;
@@ -1656,3 +1686,5 @@ void CPU::dump_opcode_table() const {
 }
 
 void CPU::timer_tick(int cycles) { bus.timer_tick(cycles); }
+
+void CPU::mcycle() { timer_tick(4); }

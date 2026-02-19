@@ -144,5 +144,7 @@ private:
   auto swap(uint8_t) -> uint8_t;
   auto srl(uint8_t) -> uint8_t;
 
+  void mcycle();
+
   std::array<Instr, 256> cb_table{}, op_table{};
 };
