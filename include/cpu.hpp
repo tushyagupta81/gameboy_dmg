@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bus.hpp"
+#include "hardware.hpp"
 #include "memory.hpp"
 #include <array>
 #include <cstdint>
@@ -18,6 +19,8 @@ public:
 
 private:
   std::ofstream trace;
+
+  HardwareType curr_hardware;
 
   Register reg{};
   Bus bus;

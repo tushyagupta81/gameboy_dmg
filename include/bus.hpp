@@ -10,6 +10,8 @@ private:
   Memory mem{};
   Timer timer;
 
+  [[nodiscard]] auto is_unused_io(uint16_t) const -> bool;
+
 public:
   Bus();
   [[nodiscard]] auto read(uint16_t addr) const -> uint8_t;

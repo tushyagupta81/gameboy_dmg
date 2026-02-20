@@ -6,7 +6,7 @@ import re
 import signal
 
 EMU_PATH = "./build/Gameboy"
-ROM_DIR = "./roms/mooneye-gb/acceptance/"
+ROM_DIR = "./roms/mooneye-gb/acceptance/timer/"
 TRACE_FILE = "trace.log"
 
 TIMEOUT_SECONDS = 20
@@ -94,7 +94,7 @@ def run_rom(rom_path):
 
 
 def main():
-    roms = sorted(glob.glob(os.path.join(ROM_DIR, "boot*.gb")))
+    roms = sorted(glob.glob(os.path.join(ROM_DIR, "*.gb")))
     results = {}
 
     for rom in roms:

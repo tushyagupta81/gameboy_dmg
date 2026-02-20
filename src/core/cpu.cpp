@@ -1,4 +1,5 @@
 #include "cpu.hpp"
+#include "hardware.hpp"
 #include "memory_map.hpp"
 #include <cstdint>
 #include <fstream>
@@ -11,15 +12,18 @@
 #endif // TRACE
 
 CPU::CPU(const std::string &rom_path)
-    : halted(false), halt_bug(false), ime(false), ime_enable_pending(false),
-      trace("trace.log") {
-  reg.set_af(0x01B0);
-  reg.set_bc(0x0013);
-  reg.set_de(0x00D8);
-  reg.set_hl(0x014D);
+    : curr_hardware(HardwareType::DMG_ABC), halted(false), halt_bug(false),
+      ime(false), ime_enable_pending(false), trace("trace.log") {
 
-  reg.sp = 0xFFFE; // typical GB start SP
-  reg.pc = 0x0100; // typical GB entry point
+  if (curr_hardware == HardwareType::DMG_ABC) {
+    reg.set_af(0x01B0);
+    reg.set_bc(0x0013);
+    reg.set_de(0x00D8);
+    reg.set_hl(0x014D);
+
+    reg.sp = 0xFFFE; // typical GB start SP
+    reg.pc = 0x0100; // typical GB entry point
+  }
 
   // std::cout << "Initialized registers\n";
 
@@ -337,7 +341,8 @@ void CPU::init_tables() {
     }
   }
 
-  // std::cout << "Implemented opcodes(Prefixed): " << implemented_cb << "/256\n";
+  // std::cout << "Implemented opcodes(Prefixed): " << implemented_cb <<
+  // "/256\n";
 }
 
 auto CPU::nop(uint8_t opcode) -> uint8_t { return 0; }

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <vector>
 
 auto Bus::read(uint16_t addr) const -> uint8_t {
   // std::cout<<std::hex<<addr<<'\n';
@@ -41,8 +42,10 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
     if (addr >= 0xFF04 && addr <= 0xFF07) {
       return timer.read(addr);
     }
+    if (is_unused_io(addr)) {
+      return OPEN_BUS; // or OPEN_BUS if you prefer
+    }
     return mem.io[addr - IO_START];
-    // return OPEN_BUS; // not implemented yet
   }
 
   if (addr >= HRAM_START && addr <= HRAM_END) {
@@ -103,18 +106,19 @@ void Bus::write(uint16_t addr, uint8_t value) {
 
   // FF00–FF7F : IO Registers
   if (addr >= IO_START && addr <= IO_END) {
-    mem.io[addr - IO_START] = value;
-
-    if (addr == 0xFF02 && value == 0x81) {
-      char c = static_cast<char>(mem.io[0xFF01 - IO_START]);
-      std::cout << c << std::flush;
-    }
     if (addr >= 0xFF04 && addr <= 0xFF07) {
       timer.write(addr, value);
       return;
     }
+    if (is_unused_io(addr)) {
+      return; // ignore write
+    }
 
-    // TODO: delegate to IO subsystem
+    mem.io[addr - IO_START] = value;
+    if (addr == 0xFF02 && value == 0x81) {
+      char c = static_cast<char>(mem.io[0xFF01 - IO_START]);
+      std::cout << c << std::flush;
+    }
     return;
   }
 
@@ -142,7 +146,7 @@ Bus::Bus() {
   mem.io[0xFF05 - IO_START] = 0x00; // TIMA
   mem.io[0xFF06 - IO_START] = 0x00; // TMA
   mem.io[0xFF07 - IO_START] = 0x00; // TAC
-  timer.write_div_raw(0xAB);          // DIV
+  timer.write_div_raw(0xAB);        // DIV
 
   // Sound
   mem.io[0xFF10 - IO_START] = 0x80;
@@ -185,3 +189,13 @@ Bus::Bus() {
 }
 
 void Bus::timer_tick(int cycles) { timer.tick(cycles); }
+
+auto Bus::is_unused_io(uint16_t addr) const -> bool {
+  static const std::vector<uint16_t> unused = {
+      0xFF03, 0xFF08, 0xFF0C, 0xFF0E, 0xFF0F, 0xFF10, 0xFF11, 0xFF12,
+      0xFF14, 0xFF16, 0xFF17, 0xFF19, 0xFF1A, 0xFF1B, 0xFF1C, 0xFF1E,
+      0xFF20, 0xFF21, 0xFF22, 0xFF23, 0xFF24, 0xFF25, 0xFF26};
+
+  return std::find(std::begin(unused), std::end(unused), addr) !=
+         std::end(unused);
+}
