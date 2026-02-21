@@ -405,6 +405,7 @@ auto CPU::service_interrupt() -> uint8_t {
 // TODO
 auto CPU::stop(uint8_t opcode) -> uint8_t {
   reg.pc++;
+  bus.reset_DIV();
   return 0;
 }
 

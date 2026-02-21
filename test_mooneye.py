@@ -1,12 +1,11 @@
+import glob
 import os
+import re
 import subprocess
 import time
-import glob
-import re
-import signal
 
 EMU_PATH = "./build/Gameboy"
-ROM_DIR = "./roms/mooneye-gb/acceptance/timer/"
+ROM_DIR = "./roms/mooneye-gb/acceptance"
 TRACE_FILE = "trace.log"
 
 TIMEOUT_SECONDS = 20
@@ -46,7 +45,7 @@ def detect_result_from_line(line):
         return "PASS"
 
     # FAILURE: All registers 0x42
-    if (A, B, C, D, E, H, L) == (0x42,) * 7:
+    if (B, C, D, E, H, L) == (0x42,) * 6:
         return "FAIL"
 
     return None

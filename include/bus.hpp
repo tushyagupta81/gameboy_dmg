@@ -18,4 +18,6 @@ public:
   void write(uint16_t addr, uint8_t value);
   void load_rom(const std::vector<uint8_t> &rom);
   void timer_tick(int cycles);
+
+  void reset_DIV();
 };

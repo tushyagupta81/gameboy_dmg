@@ -20,9 +20,13 @@ private:
   uint8_t tma = 0;
   uint8_t tac = 0;
 
+  bool tima_reload_pending = false;
+  int tima_delay = 0;
+  bool time_reloading_now = false;
+
   uint8_t *IF = nullptr;
 
   void timer_tick();
   void increment_tima();
-  [[nodiscard]] auto get_timer_bit() const -> int;
+  [[nodiscard]] auto timer_bit_from_tac(uint8_t) const -> int;
 };

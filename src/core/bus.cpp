@@ -199,3 +199,7 @@ auto Bus::is_unused_io(uint16_t addr) const -> bool {
   return std::find(std::begin(unused), std::end(unused), addr) !=
          std::end(unused);
 }
+
+void Bus::reset_DIV() {
+  write(0xFF04, 0);
+}
