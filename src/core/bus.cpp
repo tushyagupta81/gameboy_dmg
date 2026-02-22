@@ -1,6 +1,7 @@
 #include "bus.hpp"
 #include "memory.hpp"
 #include "memory_map.hpp"
+#include "ppu.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
@@ -15,7 +16,7 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
   }
 
   if (addr >= VRAM_START && addr <= VRAM_END) {
-    return mem.vram[addr - VRAM_START];
+    return ppu.read(addr);
   }
 
   if (addr >= EXRAM_START && addr <= EXRAM_END) {
@@ -31,7 +32,7 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
   }
 
   if (addr >= OAM_START && addr <= OAM_END) {
-    return mem.oam[addr - OAM_START];
+    return ppu.read(addr);
   }
 
   if (addr >= UNUSED_START && addr <= UNUSED_END) {
@@ -41,6 +42,9 @@ auto Bus::read(uint16_t addr) const -> uint8_t {
   if (addr >= IO_START && addr <= IO_END) {
     if (addr >= 0xFF04 && addr <= 0xFF07) {
       return timer.read(addr);
+    }
+    if (addr >= 0xFF40 && addr <= 0xFF4B) {
+      return ppu.read(addr);
     }
     if (is_unused_io(addr)) {
       return OPEN_BUS; // or OPEN_BUS if you prefer
@@ -71,7 +75,7 @@ void Bus::write(uint16_t addr, uint8_t value) {
 
   // 8000–9FFF : VRAM
   if (addr >= VRAM_START && addr <= VRAM_END) {
-    mem.vram[addr - VRAM_START] = value;
+    ppu.write(addr, value);
     return;
   }
 
@@ -95,7 +99,7 @@ void Bus::write(uint16_t addr, uint8_t value) {
 
   // FE00–FE9F : OAM
   if (addr >= OAM_START && addr <= OAM_END) {
-    mem.oam[addr - OAM_START] = value;
+    ppu.write(addr, value);
     return;
   }
 
@@ -108,6 +112,10 @@ void Bus::write(uint16_t addr, uint8_t value) {
   if (addr >= IO_START && addr <= IO_END) {
     if (addr >= 0xFF04 && addr <= 0xFF07) {
       timer.write(addr, value);
+      return;
+    }
+    if (addr >= 0xFF40 && addr <= 0xFF4B) {
+      ppu.write(addr, value);
       return;
     }
     if (is_unused_io(addr)) {
@@ -140,7 +148,7 @@ void Bus::load_rom(const std::vector<uint8_t> &rom_data) {
   std::copy_n(rom_data.begin(), size_to_copy, mem.rom.begin());
 }
 
-Bus::Bus() {
+Bus::Bus() : ppu(*this) {
   using namespace gb::mem;
   // Timer
   mem.io[0xFF05 - IO_START] = 0x00; // TIMA
@@ -188,7 +196,18 @@ Bus::Bus() {
   timer.connect_interrupt_flag(&mem.io[0xFF0F - gb::mem::IO_START]);
 }
 
-void Bus::timer_tick(int cycles) { timer.tick(cycles); }
+void Bus::timer_tick() {
+  timer.tick();
+  ppu.tick();
+  // auto fb = ppu.get_framebuffer();
+  // std::cout << "==== FB dump ====\n";
+  // for (int i = 0; i < 144; i++) {
+  //   for (int j = 0; j < 160; j++) {
+  //     std::cout << std::hex << std::uppercase << fb[(i * 160) + j] << " ";
+  //   }
+  //   std::cout << '\n';
+  // }
+}
 
 auto Bus::is_unused_io(uint16_t addr) const -> bool {
   static const std::vector<uint16_t> unused = {
@@ -200,6 +219,13 @@ auto Bus::is_unused_io(uint16_t addr) const -> bool {
          std::end(unused);
 }
 
-void Bus::reset_DIV() {
-  write(0xFF04, 0);
+void Bus::reset_DIV() { write(0xFF04, 0); }
+
+void Bus::request_interrupt(uint8_t id) {
+  // IF register is 0xFF0F
+  constexpr uint16_t IF_ADDR = 0xFF0F;
+
+  uint8_t &if_reg = mem.io[IF_ADDR - gb::mem::IO_START];
+
+  if_reg |= (1 << id);
 }

@@ -1688,6 +1688,10 @@ void CPU::dump_opcode_table() const {
   }
 }
 
-void CPU::timer_tick(int cycles) { bus.timer_tick(cycles); }
+void CPU::bus_tick(int cycles) {
+  for (int i = 0; i < cycles; i++) {
+    bus.timer_tick();
+  }
+}
 
-void CPU::mcycle() { timer_tick(4); }
+void CPU::mcycle() { bus_tick(4); }

@@ -14,6 +14,7 @@ target_sources(Gameboy
    src/core/cpu.cpp
    src/core/bus.cpp
    src/core/timer.cpp
+   src/core/ppu.cpp
 )
 
 target_compile_definitions(Gameboy PRIVATE TRACE)

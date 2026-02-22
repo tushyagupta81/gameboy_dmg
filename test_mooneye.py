@@ -5,7 +5,7 @@ import subprocess
 import time
 
 EMU_PATH = "./build/Gameboy"
-ROM_DIR = "./roms/mooneye-gb/acceptance"
+ROM_DIR = "./roms/mooneye-gb/acceptance/ppu/"
 TRACE_FILE = "trace.log"
 
 TIMEOUT_SECONDS = 20

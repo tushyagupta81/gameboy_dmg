@@ -15,7 +15,7 @@ public:
   auto step() -> uint8_t;
 
   void dump_opcode_table() const;
-  void timer_tick(int cycles);
+  void bus_tick(int cycles);
 
 private:
   std::ofstream trace;

@@ -84,20 +84,18 @@ void Timer::write(uint16_t addr, uint8_t val) {
 
 void Timer::connect_interrupt_flag(uint8_t *if_reg) { IF = if_reg; }
 
-void Timer::tick(int cycles) {
-  for (int i = 0; i < cycles; i++) {
-    time_reloading_now = false;
-    if (tima_reload_pending) {
-      tima_delay--;
-      if (tima_delay == 0) {
-        time_reloading_now = true;
-        tima = tma;
-        *IF |= 0x04;
-        tima_reload_pending = false;
-      }
+void Timer::tick() {
+  time_reloading_now = false;
+  if (tima_reload_pending) {
+    tima_delay--;
+    if (tima_delay == 0) {
+      time_reloading_now = true;
+      tima = tma;
+      *IF |= 0x04;
+      tima_reload_pending = false;
     }
-    timer_tick();
   }
+  timer_tick();
 }
 
 void Timer::timer_tick() {
