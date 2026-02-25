@@ -1,6 +1,7 @@
-#include <iostream>
+#include "cpu.hpp"
 
 auto main() -> int {
-  std::cout<<"Hello world\n";
+  CPU cpu;
+  cpu.dump_missing_op();
   return 0;
 }

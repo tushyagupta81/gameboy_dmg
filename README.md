@@ -1,35 +1,37 @@
-# C++ Template using CMake
-- docs - any documentation
-- include - any header files you create
-- libs - any external libraries
-- src - your source code
-- tests - any tests u write
+# GameBoy DMG
 
-## How to use
-1. Build the project Makefile
-```sh
-cmake -B build
-```
-2. Build the actual project
-```sh
-cmake --build build
-```
-3. Run the project
-```sh
-./build/ProjectName
-```
+## Parts
+1. CPU
+2. Bus
+3. PPU
+4. Timer
+5. Memory
+6. MBC
 
-## How to make changes
-1. Change the project name in CMakeLists.txt
-2. For developer support symlink the build/compile_commands.json to project root
-    - Windows ->
-    ```sh
-    (CMD)
-    mklink compile_commands.json build\compile_commands.json
-    (PowerShell)
-    New-Item -ItemType SymbolicLink -Path compile_commands.json -Target build\compile_commands.json
-    ```
-    - Linux/Macos -> 
-    ```sh
-    ln -s /path/to/project/build/compile_commands.json /path/to/project
-    ```
+### CPU
+- Clock rate?
+- Instructions
+  - Non prefixed table
+  - Prefixed table
+
+### Bus
+- connects various parts together
+- owns most of the stuff
+  - ppu
+  - memory
+  - timer
+
+### PPU
+- Works on its work cycle 
+- bg
+- window
+- sprites
+- works like scan line
+
+### Memory
+- Has a bunch of seperate regions
+- also consists of bunch of registors
+
+### Timer
+- does the cycle tracking
+- hold multiple registers

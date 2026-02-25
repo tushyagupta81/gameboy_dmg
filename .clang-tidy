@@ -4,5 +4,13 @@ Checks: >
   modernize-*,
   performance-*,
   readability-*,
-  cppcoreguidelines-*
+  cppcoreguidelines-*,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -readability-convert-member-functions-to-static,
+  -readability-make-member-function-const,
+  -bugprone-easily-swappable-parameters,
+  -readability-suspicious-call-argument,
 WarningsAsErrors: '*'

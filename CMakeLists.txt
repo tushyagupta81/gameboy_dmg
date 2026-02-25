@@ -1,18 +1,20 @@
 cmake_minimum_required(VERSION 4.2)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(ProjectName)
+project(Gameboy)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
-add_executable(ProjectName)
+add_executable(Gameboy)
 
-target_sources(ProjectName
+target_sources(Gameboy
   PRIVATE
    src/main.cpp
+   src/core/cpu.cpp
 )
 
-target_include_directories(ProjectName
+target_include_directories(Gameboy
    PRIVATE
-   include)
+   include
+)
