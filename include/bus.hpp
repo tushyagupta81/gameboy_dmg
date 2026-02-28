@@ -1,5 +1,8 @@
+#pragma once
 #include <array>
+#include "timer.hpp"
 #include <cstdint>
+
 class Bus {
 private:
   std::array<uint8_t, 0x8000> rom{};
@@ -12,7 +15,11 @@ private:
   std::array<uint8_t, 0x7F> hram{};
   uint8_t ie = 0;
 
+  Timer timer{};
+
 public:
   auto read(uint16_t) -> uint8_t;
   void write(uint16_t, uint8_t);
+
+  void enable_interrupt(uint8_t);
 };

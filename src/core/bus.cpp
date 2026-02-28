@@ -25,6 +25,9 @@ auto Bus::read(uint16_t addr) -> uint8_t {
     abort();
   }
   if (addr >= 0xFF00 && addr < 0xFF80) {
+    if (addr >= 0xFF04 && addr <= 0xFF07) {
+      return timer.read(addr);
+    }
     return io[addr - 0xFF00];
   }
   if (addr >= 0xFF80 && addr < 0xFFFF) {
@@ -37,8 +40,7 @@ auto Bus::read(uint16_t addr) -> uint8_t {
   __builtin_unreachable();
 }
 
-
-void Bus::write(uint16_t addr, uint8_t val){
+void Bus::write(uint16_t addr, uint8_t val) {
   if (addr < 0x8000) {
     rom[addr] = val;
   }
@@ -60,6 +62,10 @@ void Bus::write(uint16_t addr, uint8_t val){
     abort();
   }
   if (addr >= 0xFF00 && addr < 0xFF80) {
+    if (addr >= 0xFF04 && addr <= 0xFF07) {
+      timer.write(addr, val);
+      return;
+    }
     io[addr - 0xFF00] = val;
   }
   if (addr >= 0xFF80 && addr < 0xFFFF) {
@@ -68,6 +74,8 @@ void Bus::write(uint16_t addr, uint8_t val){
   if (addr == 0xFFFF) {
     ie = val;
   }
+}
 
-  __builtin_unreachable();
+void Bus::enable_interrupt(uint8_t bit) {
+  write(0xFF0F, (read(0xFF0F) | (1 << bit)));
 }
