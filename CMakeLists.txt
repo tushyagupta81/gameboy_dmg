@@ -12,6 +12,7 @@ target_sources(Gameboy
   PRIVATE
    src/main.cpp
    src/core/cpu.cpp
+   src/core/bus.cpp
 )
 
 target_include_directories(Gameboy

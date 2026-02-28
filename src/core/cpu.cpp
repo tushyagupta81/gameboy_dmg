@@ -1,5 +1,6 @@
 #include "cpu.hpp"
 #include <cstdint>
+#include <iomanip>
 #include <iostream>
 
 CPU::CPU() {
@@ -54,7 +55,7 @@ auto CPU::read_r8(uint8_t src) -> uint8_t {
     return reg.l;
     break;
   case 6:
-    abort();
+    return bus.read(reg.read_hl());
     break;
   case 7:
     return reg.a;
@@ -85,7 +86,7 @@ void CPU::write_r8(uint8_t src, uint8_t val) {
     reg.l = val;
     break;
   case 6:
-    abort();
+    bus.write(reg.read_hl(), val);
     break;
   case 7:
     reg.a = val;
@@ -124,13 +125,31 @@ void CPU::ld_r8_r8(uint8_t opcode) {
 
 void CPU::dump_missing_op() {
   std::cout << "=== OP TABLE ===\n";
-  for (int i = 0; i < 0xFF; i++) {
-    if (op_table[i] == &CPU::illegal) {
-      std::cout << "Missing 0x" << std::hex << std::uppercase << i << '\n';
+  for (int i = 0; i < 0x10; i++) {
+    for (int j = 0; j < 0x10; j++) {
+      int index = (i * 0x10) + j;
+
+      if (op_table[index] == &CPU::illegal) {
+        std::cout << "0x" << std::setw(2) << std::setfill('0') << std::hex
+                  << std::uppercase << index << " ";
+      } else {
+        std::cout << "     ";
+      }
     }
+    std::cout << "\n";
   }
-  std::cout << "=== PRE TABLE ===\n";
-  for (int i = 0; i < 0xFF; i++) {
-    std::cout << "Missing 0x" << std::hex << std::uppercase << i << '\n';
+  std::cout << "\n\n=== PRE TABLE ===\n";
+  for (int i = 0; i < 0x10; i++) {
+    for (int j = 0; j < 0x10; j++) {
+      int index = (i * 0x10) + j;
+
+      if (pre_table[index] == &CPU::illegal) {
+        std::cout << "0x" << std::setw(2) << std::setfill('0') << std::hex
+                  << std::uppercase << index << " ";
+      } else {
+        std::cout << "     ";
+      }
+    }
+    std::cout << "\n";
   }
 }

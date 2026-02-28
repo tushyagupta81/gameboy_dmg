@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bus.hpp"
 #include <array>
 #include <cstdint>
 struct CPUReg {
@@ -43,7 +44,8 @@ class CPU {
 
 private:
   CPUReg reg{};
-  std::array<Inst, 0xFF> op_table{}, pre_table{};
+  Bus bus{};
+  std::array<Inst, 0x100> op_table{}, pre_table{};
   void initialize_tables();
   void assign_op(uint8_t, Inst);
   void assign_pre(uint8_t, Inst);
